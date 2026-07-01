@@ -1,0 +1,2957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Football Field</title>
+  <style>
+    :root {
+      --page-pad: clamp(6px, 1.6vw, 18px);
+      --viewport-pad: clamp(3px, 0.9vw, 10px);
+      --field-max-w: 1200px;
+      --field-w: min(var(--field-max-w), calc(100vw - (2 * var(--page-pad)) - (2 * var(--viewport-pad)) - 2px));
+      --field-h: calc(var(--field-w) * 53.333 / 120);
+      --line: rgba(255,255,255,.96);
+      --minor-line: rgba(255,255,255,.13);
+      --hash: rgba(255,255,255,.92);
+      --grass-a: #087b16;
+      --grass-b: #0a921b;
+      --grass-c: #066612;
+      --goal: #ff3b1f;
+      --midline: #ffd400;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
+    body {
+      min-height: 100vh;
+      display: grid;
+      justify-items: center;
+      align-content: center;
+      gap: 0;
+      background:
+        radial-gradient(circle at center, rgba(255,255,255,.08), transparent 34%),
+        linear-gradient(145deg, #111 0%, #050505 100%);
+      color: white;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      padding: var(--page-pad);
+    }
+
+    button,
+    select {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,.25);
+      background: rgba(255,255,255,.12);
+      color: white;
+      font: inherit;
+      font-weight: 750;
+      border-radius: 999px;
+      padding: 9px 14px;
+      cursor: pointer;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.12),
+        0 8px 18px rgba(0,0,0,.28);
+    }
+
+    button:hover,
+    select:hover {
+      background: rgba(255,255,255,.18);
+    }
+
+    button.active {
+      background: rgba(255,255,255,.28);
+      border-color: rgba(255,255,255,.58);
+    }
+
+    .toolbar,
+    .controls,
+    .coords,
+    .export-box,
+    .settings-panel {
+      width: min(100%, calc(var(--field-w) + (2 * var(--viewport-pad))));
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      font-size: clamp(12px, 1.6vw, 14px);
+    }
+
+    .toolbar > div,
+    .controls > div {
+      min-width: 0;
+    }
+
+    .toolbar .note,
+    .controls .hint {
+      opacity: .85;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .controls-left,
+    .controls-right {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .controls .hint {
+      font-size: clamp(11px, 1.5vw, 13px);
+    }
+
+    .settings-panel {
+      display: none;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0;
+      padding: 12px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 18px;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,.10), rgba(255,255,255,.03)),
+        rgba(0,0,0,.24);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+    }
+
+    .settings-panel.open {
+      display: grid;
+    }
+
+    .team-card {
+      min-width: 0;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 16px;
+      padding: 12px;
+      background: rgba(0,0,0,.23);
+    }
+
+    .team-card h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      line-height: 1.1;
+    }
+
+    .team-card.red h2 {
+      color: #ff6579;
+    }
+
+    .team-card.blue h2 {
+      color: #76aaff;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 9px 0;
+    }
+
+    .small-label {
+      display: block;
+      opacity: .76;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+
+    .preset-button {
+      font-size: 12px;
+      padding: 7px 10px;
+    }
+
+    .viewport {
+      width: min(100%, calc(var(--field-w) + (2 * var(--viewport-pad))));
+      max-width: 100%;
+      overflow: hidden;
+      padding: var(--viewport-pad);
+      border-radius: 20px;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.02)),
+        rgba(255,255,255,.04);
+      box-shadow:
+        0 24px 70px rgba(0,0,0,.55),
+        inset 0 1px 0 rgba(255,255,255,.10);
+    }
+
+    .field {
+      position: relative;
+      width: 100%;
+      max-width: var(--field-w);
+      height: var(--field-h);
+      overflow: hidden;
+      border-radius: 16px;
+      border: none;
+      outline: 3px solid rgba(255,255,255,.92);
+      outline-offset: -3px;
+      user-select: none;
+      touch-action: none;
+      box-shadow:
+        inset 0 0 0 2px rgba(0,0,0,.22),
+        inset 0 0 80px rgba(0,0,0,.28),
+        0 18px 45px rgba(0,0,0,.45);
+      background:
+        radial-gradient(ellipse at center, rgba(255,255,255,.13), transparent 60%),
+        repeating-linear-gradient(
+          105deg,
+          transparent 0 70px,
+          rgba(255,255,255,.035) 70px 82px,
+          transparent 82px 145px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          var(--grass-c) 0 60px,
+          var(--grass-a) 60px 120px,
+          var(--grass-b) 120px 180px,
+          var(--grass-a) 180px 240px
+        );
+      background-size:
+        100% 100%,
+        220px 220px,
+        240px 100%;
+    }
+
+    .field::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(0,0,0,.16), transparent 12%, transparent 88%, rgba(0,0,0,.16)),
+        linear-gradient(0deg, rgba(0,0,0,.20), transparent 20%, transparent 80%, rgba(0,0,0,.20));
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .endzone {
+      position: absolute;
+      top: 0;
+      width: 8.333333%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+      background:
+        repeating-linear-gradient(135deg, rgba(255,255,255,.18) 0px, rgba(255,255,255,.18) 5px, transparent 5px, transparent 22px),
+        linear-gradient(90deg, rgba(0,0,0,.34), rgba(0,0,0,.12));
+    }
+
+    .endzone.left {
+      left: 0;
+    }
+
+    .endzone.right {
+      right: 0;
+      background:
+        repeating-linear-gradient(45deg, rgba(255,255,255,.18) 0px, rgba(255,255,255,.18) 5px, transparent 5px, transparent 22px),
+        linear-gradient(270deg, rgba(0,0,0,.34), rgba(0,0,0,.12));
+    }
+
+    .yard-line,
+    .goal-line,
+    .center-line,
+    .top-label,
+    .bottom-label,
+    .tick,
+    .hash,
+    .dot {
+      position: absolute;
+    }
+
+    .yard-line {
+      top: 0;
+      width: clamp(2px, .42vw, 5px);
+      height: 100%;
+      background: var(--line);
+      transform: translateX(-50%);
+      pointer-events: none;
+      z-index: 4;
+      box-shadow: 0 0 8px rgba(255,255,255,.16);
+    }
+
+    .goal-line {
+      top: 0;
+      width: clamp(3px, .5vw, 6px);
+      height: 100%;
+      background: var(--goal);
+      transform: translateX(-50%);
+      pointer-events: none;
+      z-index: 7;
+      box-shadow: 0 0 12px rgba(255,59,31,.42);
+    }
+
+    .center-line {
+      top: 0;
+      height: 100%;
+      width: clamp(5px, .7vw, 8px);
+      background: var(--midline);
+      transform: translateX(-50%);
+      z-index: 18;
+      border-radius: 999px;
+      cursor: ew-resize;
+      touch-action: none;
+      box-shadow:
+        0 0 10px rgba(255,212,0,.75),
+        0 0 24px rgba(255,212,0,.35);
+    }
+
+    .center-line::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -10px;
+      right: -10px;
+    }
+
+    .center-line.dragging {
+      z-index: 35;
+      box-shadow:
+        0 0 12px rgba(255,212,0,.95),
+        0 0 34px rgba(255,212,0,.55),
+        0 0 0 5px rgba(255,255,255,.16);
+    }
+
+    .top-label,
+    .bottom-label {
+      transform: translateX(-50%);
+      color: white;
+      font-weight: 900;
+      font-size: clamp(11px, 2vw, 24px);
+      line-height: 1;
+      letter-spacing: .5px;
+      text-shadow: 0 2px 5px rgba(0,0,0,.65), 0 0 14px rgba(0,0,0,.35);
+      pointer-events: none;
+      z-index: 8;
+    }
+
+    .top-label {
+      top: clamp(4px, 1.3vw, 8px);
+    }
+
+    .bottom-label {
+      bottom: clamp(4px, 1.3vw, 8px);
+    }
+
+    .tick {
+      width: clamp(2px, .38vw, 4px);
+      height: clamp(9px, 2vw, 20px);
+      background: white;
+      transform: translateX(-50%);
+      pointer-events: none;
+      z-index: 8;
+      border-radius: 999px;
+      box-shadow: 0 0 8px rgba(255,255,255,.22);
+    }
+
+    .tick.top {
+      top: clamp(19px, 4vw, 34px);
+    }
+
+    .tick.bottom {
+      bottom: clamp(19px, 4vw, 34px);
+    }
+
+    .hash {
+      width: clamp(2px, .28vw, 3px);
+      height: clamp(7px, 1.3vw, 14px);
+      background: var(--hash);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 4;
+      border-radius: 999px;
+    }
+
+    .hash.long {
+      height: clamp(16px, 3.3vw, 38px);
+      width: clamp(2px, .36vw, 4px);
+    }
+
+    .dot {
+      width: clamp(17px, 2.4vw, 26px);
+      height: clamp(17px, 2.4vw, 26px);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 20;
+      cursor: grab;
+      touch-action: none;
+      border: 2px solid rgba(255,255,255,.92);
+      box-shadow:
+        0 3px 8px rgba(0,0,0,.45),
+        inset 0 1px 3px rgba(255,255,255,.45);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-size: clamp(7px, 1.15vw, 11px);
+      font-weight: 950;
+      letter-spacing: -.25px;
+      text-shadow: 0 1px 3px rgba(0,0,0,.8);
+    }
+
+    .dot::after {
+      content: attr(data-position-full);
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 7px);
+      transform: translateX(-50%) scale(.96);
+      opacity: 0;
+      pointer-events: none;
+      white-space: nowrap;
+      border: 1px solid rgba(255,255,255,.34);
+      border-radius: 999px;
+      padding: 5px 9px;
+      background: rgba(0,0,0,.82);
+      color: white;
+      font-size: 11px;
+      font-weight: 850;
+      box-shadow: 0 8px 20px rgba(0,0,0,.38);
+      transition: opacity .12s ease, transform .12s ease;
+      z-index: 45;
+    }
+
+    .dot:hover::after,
+    .dot:focus-visible::after {
+      opacity: 1;
+      transform: translateX(-50%) scale(1);
+    }
+
+    .dot:active {
+      cursor: grabbing;
+    }
+
+    .dot.dragging {
+      z-index: 30;
+      box-shadow:
+        0 8px 18px rgba(0,0,0,.55),
+        0 0 0 5px rgba(255,255,255,.16),
+        inset 0 1px 3px rgba(255,255,255,.45);
+    }
+
+    .dot.red {
+      background: #e60023;
+    }
+
+    .dot.blue {
+      background: #0066ff;
+    }
+
+    .coords {
+      font-size: clamp(11px, 1.6vw, 13px);
+      opacity: .88;
+      min-height: 20px;
+    }
+
+    .export-box {
+      min-height: 210px;
+      resize: vertical;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 14px;
+      background: rgba(0,0,0,.38);
+      color: white;
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: clamp(11px, 1.5vw, 13px);
+      line-height: 1.45;
+      outline: none;
+    }
+
+
+
+    .admin-button {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 1100;
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border-radius: 50%;
+      font-size: 20px;
+      background: rgba(0,0,0,.52);
+      border-color: rgba(255,255,255,.48);
+      backdrop-filter: blur(10px);
+    }
+
+    .admin-shell {
+      position: fixed;
+      top: 70px;
+      left: 14px;
+      z-index: 1090;
+      display: none;
+      width: min(430px, calc(100vw - 28px));
+      max-height: calc(100vh - 86px);
+      overflow: auto;
+      padding: 12px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 22px;
+      background: rgba(8,8,10,.92);
+      box-shadow: 0 24px 70px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.10);
+      backdrop-filter: blur(12px);
+    }
+
+    .admin-shell.open {
+      display: block;
+    }
+
+    .admin-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .admin-actions button {
+      font-size: 12px;
+      padding: 7px 10px;
+    }
+
+    .play-button {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 60;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-width: clamp(122px, 18vw, 172px);
+      padding: clamp(13px, 1.8vw, 18px) clamp(24px, 3vw, 34px);
+      font-size: clamp(17px, 2.2vw, 24px);
+      letter-spacing: .6px;
+      color: #101010;
+      text-transform: uppercase;
+      background:
+        radial-gradient(circle at 32% 18%, rgba(255,255,255,.96), transparent 32%),
+        linear-gradient(145deg, #ffe45c 0%, #ffb000 58%, #f17300 100%);
+      border: 3px solid rgba(255,255,255,.92);
+      box-shadow:
+        0 0 0 5px rgba(0,0,0,.22),
+        0 20px 38px rgba(0,0,0,.50),
+        0 0 30px rgba(255,196,0,.48),
+        inset 0 2px 0 rgba(255,255,255,.72),
+        inset 0 -5px 0 rgba(0,0,0,.18);
+    }
+
+    .play-button:hover {
+      background:
+        radial-gradient(circle at 32% 18%, rgba(255,255,255,1), transparent 34%),
+        linear-gradient(145deg, #fff06c 0%, #ffc400 58%, #ff7a00 100%);
+      transform: translate(-50%, -50%) scale(1.04);
+    }
+
+    .play-button:active {
+      transform: translate(-50%, -50%) scale(.98);
+      box-shadow:
+        0 0 0 4px rgba(0,0,0,.24),
+        0 12px 24px rgba(0,0,0,.46),
+        inset 0 2px 0 rgba(255,255,255,.65),
+        inset 0 -3px 0 rgba(0,0,0,.20);
+    }
+
+    .play-button::before {
+      content: "▶";
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: white;
+      background: rgba(0,0,0,.86);
+      font-size: .72em;
+      line-height: 1;
+      box-shadow: inset 0 -2px 0 rgba(255,255,255,.15);
+    }
+
+    .lineup-preview {
+      position: relative;
+      width: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 14px;
+      background:
+        radial-gradient(circle at 50% 28%, rgba(255,255,255,.13), transparent 44%),
+        repeating-linear-gradient(0deg, rgba(255,255,255,.08) 0 1px, transparent 1px 15px),
+        repeating-linear-gradient(90deg, rgba(255,255,255,.10) 0 1px, transparent 1px 18px),
+        linear-gradient(145deg, rgba(6,102,18,.96), rgba(10,146,27,.92));
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.12),
+        inset 0 -18px 35px rgba(0,0,0,.14);
+    }
+
+    .lineup-preview::before {
+      content: "";
+      position: absolute;
+      top: 7%;
+      bottom: 7%;
+      width: 2px;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: rgba(255,212,0,.95);
+      box-shadow: 0 0 8px rgba(255,212,0,.65);
+    }
+
+    .lineup-preview.line-left::before,
+    .lineup-preview.line-right::before {
+      left: var(--line-x, 50%);
+    }
+
+    .preview-dot {
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,.92);
+      transform: translate(-50%, -50%);
+      background: currentColor;
+      box-shadow: 0 2px 5px rgba(0,0,0,.38);
+    }
+
+    .lineup-option strong {
+      display: block;
+      font-size: 13px;
+      line-height: 1.05;
+    }
+
+    .selection-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      place-items: center;
+      padding: 18px;
+      background: rgba(0,0,0,.62);
+      perspective: 1100px;
+    }
+
+    .selection-overlay.open {
+      display: grid;
+    }
+
+    .selection-card {
+      width: min(92vw, 430px);
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 24px;
+      padding: 18px;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,.16), rgba(255,255,255,.05)),
+        rgba(13,13,16,.94);
+      box-shadow:
+        0 24px 70px rgba(0,0,0,.58),
+        inset 0 1px 0 rgba(255,255,255,.13);
+      transform-origin: top center;
+    }
+
+    .selection-card.swing-in {
+      animation: swingIn .58s cubic-bezier(.18, .9, .25, 1.24) both;
+    }
+
+    .selection-card.swing-out {
+      animation: swingForwardOut .76s cubic-bezier(.7, -.18, .34, 1) both;
+    }
+
+    @keyframes swingIn {
+      from { opacity: 0; transform: rotateX(-64deg) translateY(-24px) scale(.92); }
+      to { opacity: 1; transform: rotateX(0deg) translateY(0) scale(1); }
+    }
+
+    @keyframes swingForwardOut {
+      0% { opacity: 1; transform: rotateX(0deg) translateY(0) scale(1); }
+      45% { opacity: 1; transform: rotateX(28deg) translateY(10px) scale(1.03); }
+      100% { opacity: 0; transform: rotateX(82deg) translateY(120px) scale(.76); }
+    }
+
+    .selection-card h1 {
+      margin: 0 0 7px;
+      font-size: clamp(21px, 3.5vw, 29px);
+      line-height: 1;
+    }
+
+    .selection-card p {
+      margin: 0 0 11px;
+      color: rgba(255,255,255,.82);
+      line-height: 1.38;
+      font-size: 13px;
+    }
+
+    .selection-card strong.red-text {
+      color: #ff6579;
+    }
+
+    .selection-card strong.blue-text {
+      color: #76aaff;
+    }
+
+    .selection-panel {
+      display: none;
+    }
+
+    .selection-panel.active {
+      display: block;
+    }
+
+    .team-toggle,
+    .selection-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin-top: 10px;
+    }
+
+    .lineup-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+      gap: 9px;
+      margin-top: 10px;
+    }
+
+    .lineup-option {
+      width: 100%;
+      aspect-ratio: 2 / 3;
+      text-align: left;
+      border-radius: 18px;
+      padding: 9px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,.15), rgba(255,255,255,.055)),
+        rgba(0,0,0,.22);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.12),
+        0 10px 22px rgba(0,0,0,.24);
+    }
+
+    .lineup-option span {
+      display: block;
+      margin-top: 3px;
+      font-size: 10px;
+      line-height: 1.15;
+      font-weight: 650;
+      opacity: .76;
+    }
+
+    .lineup-option.active {
+      background: rgba(255,255,255,.28);
+      border-color: rgba(255,255,255,.62);
+    }
+
+    .selection-message {
+      min-height: 22px;
+      margin-top: 12px;
+      color: rgba(255,255,255,.88);
+      font-weight: 800;
+    }
+
+    .admin-shell .settings-panel,
+    .admin-shell .coords,
+    .admin-shell .export-box {
+      width: 100%;
+    }
+
+    .admin-shell .settings-panel {
+      grid-template-columns: 1fr;
+    }
+
+    .admin-shell .export-box {
+      min-height: 150px;
+      margin-top: 10px;
+    }
+
+    .selection-overlay.dice-mode {
+      background: transparent;
+      pointer-events: none;
+    }
+
+    .selection-overlay.dice-mode .selection-card {
+      opacity: 0;
+      transform: scale(.92);
+      pointer-events: none;
+      transition: opacity .28s ease, transform .28s ease;
+    }
+
+    .ready-roll-title {
+      margin: 0;
+      text-align: center;
+      font-size: clamp(42px, 12vw, 86px);
+      line-height: .9;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: white;
+      text-shadow: 0 6px 0 rgba(0,0,0,.22), 0 0 28px rgba(255,255,255,.24);
+    }
+
+    .ready-roll-title.pop {
+      animation: readyRollPop .44s cubic-bezier(.18, 1.35, .32, 1) both;
+    }
+
+    .ready-roll-note {
+      margin: 12px 0 0 !important;
+      text-align: center;
+      font-weight: 850;
+      font-size: clamp(13px, 2.4vw, 18px) !important;
+      color: rgba(255,255,255,.84) !important;
+    }
+
+    @keyframes readyRollPop {
+      from { opacity: 0; transform: translateY(12px) scale(.82); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .dice-fall-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 1010;
+      display: none;
+      pointer-events: none;
+      overflow: hidden;
+      --dice-color: #e60023;
+    }
+
+    .dice-fall-layer.show {
+      display: block;
+    }
+
+    .dice-turn-badge {
+      position: absolute;
+      top: clamp(18px, 4vw, 44px);
+      left: 50%;
+      transform: translateX(-50%);
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 22px;
+      border-radius: 999px;
+      color: white;
+      font-size: clamp(16px, 4vw, 26px);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: var(--dice-color);
+      box-shadow: 0 8px 0 rgba(0,0,0,.24), 0 0 0 6px rgba(255,255,255,.36), 0 0 32px color-mix(in srgb, var(--dice-color) 72%, transparent);
+      animation: badgeDrop .52s cubic-bezier(.2, 1.22, .35, 1) both;
+    }
+
+    .dice-turn-badge::before {
+      content: "";
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: inset 0 -3px 0 rgba(0,0,0,.18);
+    }
+
+    .falling-dice {
+      position: absolute;
+      left: 50%;
+      top: -130px;
+      width: clamp(78px, 14vw, 126px);
+      height: clamp(78px, 14vw, 126px);
+      border-radius: 24%;
+      background: var(--dice-color);
+      border: 5px solid #725349;
+      box-shadow: 0 12px 0 rgba(114,83,73,.88), 0 22px 34px rgba(0,0,0,.36), inset 0 8px 0 rgba(255,255,255,.22);
+      animation: diceFall 1.35s cubic-bezier(.22,.7,.18,1) forwards;
+    }
+
+    .falling-dice.one {
+      margin-left: clamp(-132px, -16vw, -88px);
+      animation-delay: .12s;
+    }
+
+    .falling-dice.two {
+      margin-left: clamp(34px, 8vw, 76px);
+      animation-delay: .22s;
+      transform: rotate(18deg);
+    }
+
+    .pip {
+      position: absolute;
+      width: 19%;
+      height: 19%;
+      border-radius: 50%;
+      background: white;
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,.14);
+    }
+
+    .pip.tl { left: 22%; top: 22%; }
+    .pip.tr { right: 22%; top: 22%; }
+    .pip.mm { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+    .pip.bl { left: 22%; bottom: 22%; }
+    .pip.br { right: 22%; bottom: 22%; }
+    .pip.ml { left: 22%; top: 50%; transform: translateY(-50%); }
+    .pip.mr { right: 22%; top: 50%; transform: translateY(-50%); }
+
+    @keyframes badgeDrop {
+      from { opacity: 0; transform: translate(-50%, -14px) scale(.82); }
+      to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    }
+
+    @keyframes diceFall {
+      0% { top: -140px; opacity: 0; transform: translateX(-50%) rotate(-80deg) scale(.78); }
+      16% { opacity: 1; }
+      72% { top: 48%; transform: translateX(-50%) rotate(330deg) scale(1.04); }
+      86% { top: 43%; transform: translateX(-50%) rotate(372deg) scale(.98); }
+      100% { top: 46%; opacity: 1; transform: translateX(-50%) rotate(360deg) scale(1); }
+    }
+
+
+
+    .play-button.is-hidden {
+      display: none;
+    }
+
+    .game-dice-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 65;
+      display: none;
+      pointer-events: none;
+      --dice-color: #e60023;
+      overflow: hidden;
+    }
+
+    .game-dice-layer.active {
+      display: block;
+      pointer-events: auto;
+    }
+
+    .dice-popup-card {
+      position: absolute;
+      left: 50%;
+      top: 52%;
+      width: min(58%, 560px);
+      height: min(66%, 360px);
+      min-width: 260px;
+      min-height: 210px;
+      transform: translate(-50%, -50%);
+      border-radius: clamp(18px, 3vw, 34px);
+      border: 2px solid rgba(255,255,255,.55);
+      background:
+        radial-gradient(circle at 50% 26%, rgba(255,255,255,.20), transparent 35%),
+        linear-gradient(145deg, rgba(18,24,32,.92), rgba(8,10,16,.82));
+      box-shadow:
+        0 24px 64px rgba(0,0,0,.48),
+        0 0 0 8px rgba(255,255,255,.08),
+        inset 0 1px 0 rgba(255,255,255,.24),
+        inset 0 -24px 40px rgba(0,0,0,.18);
+      overflow: hidden;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .dice-popup-card::before {
+      content: "";
+      position: absolute;
+      inset: 14px;
+      border-radius: inherit;
+      border: 1px solid rgba(255,255,255,.16);
+      background:
+        linear-gradient(90deg, transparent, color-mix(in srgb, var(--dice-color) 16%, transparent), transparent),
+        radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--dice-color) 18%, transparent), transparent 56%);
+    }
+
+    .dice-popup-card::after {
+      content: "ROLL ZONE";
+      position: absolute;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.34);
+      border: 1px solid rgba(255,255,255,.18);
+      color: rgba(255,255,255,.62);
+      font-size: clamp(9px, 1.4vw, 12px);
+      font-weight: 950;
+      letter-spacing: 1.4px;
+    }
+
+    #physicsDiceMount {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      overflow: visible;
+      border-radius: 0;
+      pointer-events: auto;
+    }
+
+    .physics-dice-ui {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      z-index: 2;
+    }
+
+    .game-turn-badge {
+      margin-top: clamp(10px, 2vw, 20px);
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 18px;
+      border-radius: 999px;
+      color: white;
+      font-size: clamp(13px, 2vw, 20px);
+      font-weight: 950;
+      letter-spacing: .9px;
+      text-transform: uppercase;
+      background: var(--dice-color);
+      border: 2px solid rgba(255,255,255,.82);
+      box-shadow: 0 8px 0 rgba(0,0,0,.25), 0 0 26px color-mix(in srgb, var(--dice-color) 70%, transparent);
+      transition: transform .35s ease, background .45s ease;
+    }
+
+    .game-dice-layer.switching .game-turn-badge {
+      transform: translateY(8px) scale(.96);
+    }
+
+    .game-turn-badge::before {
+      content: "";
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: inset 0 -3px 0 rgba(0,0,0,.18);
+    }
+
+    .game-result-board {
+      margin-top: clamp(10px, 2vw, 18px);
+      min-height: 54px;
+      display: grid;
+      justify-items: center;
+      gap: 4px;
+      opacity: 0;
+      transform: translateY(-6px) scale(.94);
+      transition: opacity .25s ease, transform .25s ease;
+      color: white;
+      text-align: center;
+      text-shadow: 0 3px 0 rgba(0,0,0,.22), 0 0 16px rgba(0,0,0,.32);
+      font-weight: 950;
+    }
+
+    .game-result-board.show {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .game-total-score {
+      font-size: clamp(28px, 5.6vw, 56px);
+      line-height: .95;
+    }
+
+    .game-detail-score {
+      font-size: clamp(12px, 2.1vw, 18px);
+      opacity: .9;
+    }
+
+    .game-dice-hint {
+      position: absolute;
+      left: 50%;
+      bottom: clamp(12px, 3vw, 28px);
+      transform: translateX(-50%);
+      margin: 0;
+      padding: 7px 14px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.52);
+      border: 1px solid rgba(255,255,255,.24);
+      color: rgba(255,255,255,.92);
+      font-size: clamp(11px, 1.7vw, 14px);
+      font-weight: 850;
+      text-shadow: 0 1px 2px rgba(0,0,0,.5);
+      white-space: nowrap;
+    }
+
+    .physics-dice-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .game-dice-layer.input-locked {
+      cursor: default;
+    }
+
+    .game-dice-layer.input-locked .physics-dice-canvas {
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .physics-dice-canvas:active {
+      cursor: grabbing;
+    }
+
+    .game-dice-layer.input-locked .physics-dice-canvas:active {
+      cursor: default;
+    }
+
+    @media (max-width: 720px) {
+      .settings-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar,
+      .controls {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://esm.sh/three@0.160.0",
+        "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+        "cannon-es": "https://esm.sh/cannon-es@0.20.0"
+      }
+    }
+  </script>
+</head>
+<body>
+  <button class="admin-button" id="settingsBtn" type="button" aria-expanded="false" aria-label="Admin setup">⚙</button>
+
+  <div class="viewport">
+    <div class="field" id="field" aria-label="Football field grid">
+      <div class="endzone left"></div>
+      <div class="endzone right"></div>
+      <div class="center-line" id="centerLine" title="Drag yellow line"></div>
+      <button class="play-button" id="playBtn" type="button">Play</button>
+      <div class="game-dice-layer" id="gameDiceLayer" aria-hidden="true">
+        <div class="dice-popup-card" id="dicePopupCard" aria-hidden="true"></div>
+        <div id="physicsDiceMount" aria-label="Dice rolling area"></div>
+        <div class="physics-dice-ui">
+          <div class="game-turn-badge" id="gameTurnBadge">Red Turn</div>
+          <div class="game-result-board" id="gameResultBoard">
+            <div class="game-total-score" id="gameTotalScore">0</div>
+            <div class="game-detail-score" id="gameDetailScore"></div>
+          </div>
+          <div class="game-dice-hint" id="gameDiceHint">Click or drag dice to roll</div>
+        </div>
+        <button id="gameDiceButton" type="button" hidden aria-label="Roll dice"></button>
+        <span id="gameDieOne" hidden></span>
+        <span id="gameDieTwo" hidden></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="selection-overlay" id="selectionOverlay" aria-hidden="true">
+    <div class="selection-card swing-in" id="selectionCard" role="dialog" aria-modal="true" aria-live="polite">
+      <div class="selection-panel active" id="redIntroPanel">
+        <h1 id="selectionIntroTitle"><strong class="red-text">Red selection</strong></h1>
+        <p id="selectionIntroText">Hide the screen from the other team while this team chooses its lineup.</p>
+      </div>
+
+      <div class="selection-panel" id="lineupPanel">
+        <h1 id="lineupPanelTitle">Team setup</h1>
+        <p id="teamStatusText">Your Offense/Defense role is automatically selected from the admin setup.</p>
+        <div class="team-toggle" id="redTeamToggle" aria-label="Current team type"></div>
+        <div class="lineup-options" id="redLineupOptions" aria-label="Choose lineup"></div>
+        <div class="selection-actions">
+          <button id="verifyLineupBtn" type="button">Verify lineup</button>
+        </div>
+        <div class="selection-message" id="selectionMessage"></div>
+      </div>
+
+      <div class="selection-panel" id="passPanel">
+        <h1 id="passPanelTitle">Selection hidden</h1>
+        <p id="passPanelText">Pass to the Blue Player's Team.</p>
+        <button id="closeSelectionBtn" type="button">Continue</button>
+      </div>
+
+      <div class="selection-panel" id="readyRollPanel">
+        <h1 class="ready-roll-title" id="readyRollTitle">Ready?</h1>
+        <p class="ready-roll-note" id="readyRollNote">Both teams are locked in.</p>
+      </div>
+    </div>
+
+    <div class="dice-fall-layer" id="diceFallLayer" aria-hidden="true">
+      <div class="dice-turn-badge" id="diceTurnBadge">Red Turn</div>
+      <div class="falling-dice one" aria-hidden="true">
+        <span class="pip tl"></span><span class="pip tr"></span><span class="pip mm"></span><span class="pip bl"></span><span class="pip br"></span>
+      </div>
+      <div class="falling-dice two" aria-hidden="true">
+        <span class="pip tl"></span><span class="pip tr"></span><span class="pip ml"></span><span class="pip mr"></span><span class="pip bl"></span><span class="pip br"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-shell" id="adminShell">
+    <div class="admin-actions" aria-label="Admin lineup controls">
+      <button id="exportBtn" type="button">Export Field</button>
+      <button id="downloadBtn" type="button">Download Field</button>
+      <button id="importBtn" type="button">Import Field</button>
+      <button id="exportLineupsBtn" type="button">Export Lineups</button>
+      <button id="downloadLineupsBtn" type="button">Download Lineups</button>
+      <button id="importLineupsBtn" type="button">Import Lineups</button>
+      <button id="importFileBtn" type="button">Import File</button>
+      <button id="deleteRedLineupBtn" type="button">Delete Red Lineup</button>
+      <button id="deleteBlueLineupBtn" type="button">Delete Blue Lineup</button>
+    </div>
+    <input id="importFileInput" type="file" accept="application/json,.json" />
+    <div class="settings-panel open" id="settingsPanel" aria-label="Team settings">
+      <section class="team-card red" aria-label="Red team settings">
+        <h2>Red Side</h2>
+        <div id="redTypeButtons"></div>
+        <div id="redPresetButtons"></div>
+      </section>
+      <section class="team-card blue" aria-label="Blue team settings">
+        <h2>Blue Side</h2>
+        <div id="blueTypeButtons"></div>
+        <div id="bluePresetButtons"></div>
+      </section>
+    </div>
+    <div class="coords" id="coords"></div>
+    <textarea class="export-box" id="exportBox" spellcheck="false"></textarea>
+  </div>
+
+  <script>
+    const FIELD_YARDS_X = 120;
+    const FIELD_YARDS_Y = 53.333;
+    const FIELD_SNAP_Y_MAX = 53;
+
+    const field = document.getElementById("field");
+    const centerLine = document.getElementById("centerLine");
+    const coords = document.getElementById("coords");
+    const exportBtn = document.getElementById("exportBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const importBtn = document.getElementById("importBtn");
+    const importFileBtn = document.getElementById("importFileBtn");
+    const importFileInput = document.getElementById("importFileInput");
+    const exportLineupsBtn = document.getElementById("exportLineupsBtn");
+    const downloadLineupsBtn = document.getElementById("downloadLineupsBtn");
+    const importLineupsBtn = document.getElementById("importLineupsBtn");
+    const deleteRedLineupBtn = document.getElementById("deleteRedLineupBtn");
+    const deleteBlueLineupBtn = document.getElementById("deleteBlueLineupBtn");
+    const exportBox = document.getElementById("exportBox");
+    const settingsBtn = document.getElementById("settingsBtn");
+    const adminShell = document.getElementById("adminShell");
+    const settingsPanel = document.getElementById("settingsPanel");
+    const redTypeButtons = document.getElementById("redTypeButtons");
+    const redPresetButtons = document.getElementById("redPresetButtons");
+    const blueTypeButtons = document.getElementById("blueTypeButtons");
+    const bluePresetButtons = document.getElementById("bluePresetButtons");
+
+    const positionNames = {
+      QB: "Quarterback",
+      C: "Center",
+      G: "Guard",
+      T: "Tackle",
+      RB: "Running Back",
+      FB: "Fullback",
+      WR: "Wide Receiver",
+      TE: "Tight End",
+      DL: "Defensive Lineman",
+      DE: "Defensive End",
+      DT: "Defensive Tackle",
+      NT: "Nose Tackle",
+      LB: "Linebacker",
+      MLB: "Middle Linebacker",
+      ILB: "Inside Linebacker",
+      OLB: "Outside Linebacker",
+      CB: "Cornerback",
+      S: "Safety",
+      FS: "Free Safety",
+      SS: "Strong Safety",
+      DB: "Defensive Back"
+    };
+
+    const formationPresets = {
+      offense: {
+        label: "Offense",
+        presets: {
+          proSet: {
+            label: "Pro Set",
+            description: "QB, C, 2 G, 2 T, RB, FB, 2 WR, TE",
+            players: [
+              { position: "T", x: -5, y: 16 },
+              { position: "G", x: -5, y: 20 },
+              { position: "C", x: -5, y: 24 },
+              { position: "G", x: -5, y: 28 },
+              { position: "T", x: -5, y: 32 },
+              { position: "QB", x: -9, y: 24 },
+              { position: "FB", x: -13, y: 24 },
+              { position: "RB", x: -17, y: 24 },
+              { position: "WR", x: -15, y: 8 },
+              { position: "WR", x: -15, y: 42 },
+              { position: "TE", x: -6, y: 36 }
+            ]
+          },
+          spread: {
+            label: "Spread",
+            description: "QB, C, 2 G, 2 T, RB, 4 WR",
+            players: [
+              { position: "T", x: -5, y: 16 },
+              { position: "G", x: -5, y: 20 },
+              { position: "C", x: -5, y: 24 },
+              { position: "G", x: -5, y: 28 },
+              { position: "T", x: -5, y: 32 },
+              { position: "QB", x: -10, y: 24 },
+              { position: "RB", x: -14, y: 29 },
+              { position: "WR", x: -18, y: 6 },
+              { position: "WR", x: -13, y: 14 },
+              { position: "WR", x: -13, y: 34 },
+              { position: "WR", x: -18, y: 46 }
+            ]
+          },
+          iFormation: {
+            label: "I-Formation",
+            description: "QB, C, 2 G, 2 T, FB, RB, 2 WR, TE",
+            players: [
+              { position: "T", x: -5, y: 16 },
+              { position: "G", x: -5, y: 20 },
+              { position: "C", x: -5, y: 24 },
+              { position: "G", x: -5, y: 28 },
+              { position: "T", x: -5, y: 32 },
+              { position: "QB", x: -8, y: 24 },
+              { position: "FB", x: -12, y: 24 },
+              { position: "RB", x: -16, y: 24 },
+              { position: "WR", x: -13, y: 8 },
+              { position: "WR", x: -13, y: 43 },
+              { position: "TE", x: -6, y: 36 }
+            ]
+          }
+        }
+      },
+      defense: {
+        label: "Defense",
+        presets: {
+          fourThree: {
+            label: "4-3",
+            description: "4 defensive linemen, 3 linebackers, 4 defensive backs",
+            players: [
+              { position: "DE", x: 5, y: 15 },
+              { position: "DT", x: 5, y: 21 },
+              { position: "DT", x: 5, y: 27 },
+              { position: "DE", x: 5, y: 33 },
+              { position: "OLB", x: 10, y: 17 },
+              { position: "MLB", x: 10, y: 24 },
+              { position: "OLB", x: 10, y: 31 },
+              { position: "CB", x: 15, y: 8 },
+              { position: "CB", x: 15, y: 42 },
+              { position: "FS", x: 21, y: 20 },
+              { position: "SS", x: 18, y: 32 }
+            ]
+          },
+          threeFour: {
+            label: "3-4",
+            description: "3 defensive linemen, 4 linebackers, 4 defensive backs",
+            players: [
+              { position: "DE", x: 5, y: 18 },
+              { position: "NT", x: 5, y: 24 },
+              { position: "DE", x: 5, y: 30 },
+              { position: "OLB", x: 10, y: 14 },
+              { position: "ILB", x: 10, y: 21 },
+              { position: "ILB", x: 10, y: 27 },
+              { position: "OLB", x: 10, y: 34 },
+              { position: "CB", x: 15, y: 8 },
+              { position: "CB", x: 15, y: 42 },
+              { position: "FS", x: 21, y: 20 },
+              { position: "SS", x: 18, y: 32 }
+            ]
+          },
+          nickel: {
+            label: "Nickel",
+            description: "4 defensive linemen, 2 linebackers, 5 defensive backs",
+            players: [
+              { position: "DE", x: 5, y: 15 },
+              { position: "DT", x: 5, y: 21 },
+              { position: "DT", x: 5, y: 27 },
+              { position: "DE", x: 5, y: 33 },
+              { position: "LB", x: 10, y: 20 },
+              { position: "LB", x: 10, y: 29 },
+              { position: "CB", x: 15, y: 7 },
+              { position: "CB", x: 15, y: 43 },
+              { position: "DB", x: 17, y: 16 },
+              { position: "FS", x: 22, y: 24 },
+              { position: "SS", x: 18, y: 34 }
+            ]
+          }
+        }
+      }
+    };
+
+    const builtInPresetKeys = {
+      offense: new Set(Object.keys(formationPresets.offense.presets)),
+      defense: new Set(Object.keys(formationPresets.defense.presets))
+    };
+
+    const teamState = {
+      red: {
+        type: "offense",
+        preset: "proSet",
+        side: "left"
+      },
+      blue: {
+        type: "defense",
+        preset: "fourThree",
+        side: "right"
+      }
+    };
+
+    const majorLines = [
+      { x: 0, text: "" },
+      { x: 10, text: "G" },
+      { x: 20, text: "10" },
+      { x: 30, text: "20" },
+      { x: 40, text: "30" },
+      { x: 50, text: "40" },
+      { x: 60, text: "50" },
+      { x: 70, text: "40" },
+      { x: 80, text: "30" },
+      { x: 90, text: "20" },
+      { x: 100, text: "10" },
+      { x: 110, text: "G" },
+      { x: 120, text: "" }
+    ];
+
+    function yardToXPct(yards) {
+      return (yards / FIELD_YARDS_X * 100) + "%";
+    }
+
+    function yardToYPct(yards) {
+      return (yards / FIELD_YARDS_Y * 100) + "%";
+    }
+
+    function pointerXToYard(px, rect) {
+      return px / rect.width * FIELD_YARDS_X;
+    }
+
+    function pointerYToYard(px, rect) {
+      return px / rect.height * FIELD_YARDS_Y;
+    }
+
+    function snapToGrid(value) {
+      return Math.round(value);
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function toTitleCase(value) {
+      return value.charAt(0).toUpperCase() + value.slice(1);
+    }
+
+    function addFieldMarkings() {
+      majorLines.forEach(({ x, text }) => {
+        const line = document.createElement("div");
+        line.className = "yard-line";
+        line.style.left = yardToXPct(x);
+        field.appendChild(line);
+
+        if (text) {
+          ["top", "bottom"].forEach(pos => {
+            const label = document.createElement("div");
+            label.className = pos + "-label";
+            label.textContent = text;
+            label.style.left = yardToXPct(x);
+            field.appendChild(label);
+
+            const tick = document.createElement("div");
+            tick.className = "tick " + pos;
+            tick.style.left = yardToXPct(x);
+            field.appendChild(tick);
+          });
+        }
+      });
+
+      [10, 110].forEach(x => {
+        const goal = document.createElement("div");
+        goal.className = "goal-line";
+        goal.style.left = yardToXPct(x);
+        field.appendChild(goal);
+      });
+
+      for (let x = 11; x <= 109; x++) {
+        const yMid = FIELD_YARDS_Y / 2;
+        const hash = document.createElement("div");
+        hash.className = (x % 5 === 0) ? "hash long" : "hash";
+        hash.style.left = yardToXPct(x);
+        hash.style.top = yardToYPct(yMid);
+        field.appendChild(hash);
+      }
+    }
+
+    function setCenterLinePosition(x) {
+      const snappedX = snapToGrid(x);
+      const clampedX = clamp(snappedX, 0, FIELD_YARDS_X);
+      centerLine.dataset.x = String(clampedX);
+      centerLine.style.left = yardToXPct(clampedX);
+      return clampedX;
+    }
+
+    function getCenterLineX() {
+      return Number(centerLine.dataset.x);
+    }
+
+    function getDots() {
+      return Array.from(document.querySelectorAll(".dot"));
+    }
+
+    function getTeamDots(teamColor) {
+      return Array.from(document.querySelectorAll(".dot." + teamColor));
+    }
+
+    function getDotRelativeOffsets(lineX = getCenterLineX()) {
+      return getDots().map(dot => ({
+        dot,
+        relativeX: Number(dot.dataset.x) - lineX,
+        y: Number(dot.dataset.y)
+      }));
+    }
+
+    function getLineBoundsForRelativeOffsets(relativeOffsets) {
+      if (!relativeOffsets.length) {
+        return { min: 0, max: FIELD_YARDS_X };
+      }
+
+      const minRelativeX = Math.min(...relativeOffsets.map(item => item.relativeX));
+      const maxRelativeX = Math.max(...relativeOffsets.map(item => item.relativeX));
+
+      return {
+        min: -minRelativeX,
+        max: FIELD_YARDS_X - maxRelativeX
+      };
+    }
+
+    function moveFormationWithLine(newLineX, relativeOffsets) {
+      const bounds = getLineBoundsForRelativeOffsets(relativeOffsets);
+      const snappedLineX = snapToGrid(newLineX);
+      const clampedLineX = clamp(snappedLineX, bounds.min, bounds.max);
+
+      setCenterLinePosition(clampedLineX);
+
+      relativeOffsets.forEach(({ dot, relativeX, y }) => {
+        const newDotX = clampedLineX + relativeX;
+        dot.dataset.x = String(newDotX);
+        dot.dataset.y = String(y);
+        dot.style.left = yardToXPct(newDotX);
+        dot.style.top = yardToYPct(y);
+      });
+
+      return clampedLineX;
+    }
+
+    function makeCenterLineDraggable() {
+      centerLine.addEventListener("pointerdown", event => {
+        event.preventDefault();
+        centerLine.setPointerCapture(event.pointerId);
+        centerLine.classList.add("dragging");
+
+        const relativeOffsets = getDotRelativeOffsets();
+        moveCenterLineToPointer(event, relativeOffsets);
+
+        centerLine.addEventListener("pointermove", onPointerMove);
+        centerLine.addEventListener("pointerup", onPointerUp);
+        centerLine.addEventListener("pointercancel", onPointerUp);
+
+        function onPointerMove(moveEvent) {
+          moveCenterLineToPointer(moveEvent, relativeOffsets);
+        }
+
+        function onPointerUp(upEvent) {
+          centerLine.releasePointerCapture(upEvent.pointerId);
+          centerLine.classList.remove("dragging");
+          centerLine.removeEventListener("pointermove", onPointerMove);
+          centerLine.removeEventListener("pointerup", onPointerUp);
+          centerLine.removeEventListener("pointercancel", onPointerUp);
+          updateCenterLineCoords();
+        }
+      });
+    }
+
+    function moveCenterLineToPointer(event, relativeOffsets) {
+      const rect = field.getBoundingClientRect();
+      const xPx = event.clientX - rect.left;
+      const xYards = pointerXToYard(xPx, rect);
+      const movedLineX = moveFormationWithLine(xYards, relativeOffsets);
+      coords.textContent = "Yellow line — snapped x: " + movedLineX + " yards. Formation moved with the line.";
+    }
+
+    function updateCenterLineCoords() {
+      coords.textContent = "Yellow line — snapped x: " + getCenterLineX() + " yards";
+    }
+
+    function setDotPosition(dot, x, y) {
+      const snappedX = snapToGrid(x);
+      const snappedY = snapToGrid(y);
+      const clampedX = clamp(snappedX, 0, FIELD_YARDS_X);
+      const clampedY = clamp(snappedY, 0, FIELD_SNAP_Y_MAX);
+
+      dot.dataset.x = String(clampedX);
+      dot.dataset.y = String(clampedY);
+      dot.style.left = yardToXPct(clampedX);
+      dot.style.top = yardToYPct(clampedY);
+    }
+
+    function getBaseXForTeam(teamColor) {
+      return teamColor === "red" ? getCenterLineX() : getCenterLineX();
+    }
+
+    function applySideOffset(teamColor, relativeX) {
+      const state = teamState[teamColor];
+      const distanceFromLine = Math.abs(relativeX);
+      const sideMultiplier = state.side === "left" ? -1 : 1;
+      return getBaseXForTeam(teamColor) + (sideMultiplier * distanceFromLine);
+    }
+
+    function addDot(player, color, index) {
+      const dot = document.createElement("div");
+      const fullName = positionNames[player.position] || player.position;
+      const playerId = color.charAt(0).toUpperCase() + String(index + 1);
+
+      dot.className = "dot " + color;
+      dot.tabIndex = 0;
+      dot.textContent = player.position;
+      dot.dataset.id = playerId;
+      dot.dataset.color = color;
+      dot.dataset.position = player.position;
+      dot.dataset.positionFull = fullName;
+      dot.dataset.teamType = teamState[color].type;
+      dot.dataset.preset = teamState[color].preset;
+      dot.title = player.position + " — " + fullName;
+
+      setDotPosition(dot, applySideOffset(color, player.x), player.y);
+      makeDotDraggable(dot);
+      field.appendChild(dot);
+    }
+
+    function removeTeamDots(color) {
+      getTeamDots(color).forEach(dot => dot.remove());
+    }
+
+    function getSelectedPreset(color) {
+      const state = teamState[color];
+      return formationPresets[state.type].presets[state.preset];
+    }
+
+    function rebuildTeam(color) {
+      removeTeamDots(color);
+      const preset = getSelectedPreset(color);
+      preset.players.forEach((player, index) => addDot(player, color, index));
+      updatePresetButtons(color);
+      updateTypeButtons(color);
+      coords.textContent = toTitleCase(color) + " side changed to " + formationPresets[teamState[color].type].label + " — " + preset.label + ".";
+    }
+
+    function rebuildAllTeams() {
+      rebuildTeam("red");
+      rebuildTeam("blue");
+    }
+
+    function makeDotDraggable(dot) {
+      dot.addEventListener("pointerdown", event => {
+        event.preventDefault();
+        dot.setPointerCapture(event.pointerId);
+        dot.classList.add("dragging");
+        moveDotToPointer(dot, event);
+
+        dot.addEventListener("pointermove", onPointerMove);
+        dot.addEventListener("pointerup", onPointerUp);
+        dot.addEventListener("pointercancel", onPointerUp);
+
+        function onPointerMove(moveEvent) {
+          moveDotToPointer(dot, moveEvent);
+        }
+
+        function onPointerUp(upEvent) {
+          dot.releasePointerCapture(upEvent.pointerId);
+          dot.classList.remove("dragging");
+          dot.removeEventListener("pointermove", onPointerMove);
+          dot.removeEventListener("pointerup", onPointerUp);
+          dot.removeEventListener("pointercancel", onPointerUp);
+          updateDotCoords(dot);
+        }
+      });
+    }
+
+    function moveDotToPointer(dot, event) {
+      const rect = field.getBoundingClientRect();
+      const xPx = event.clientX - rect.left;
+      const yPx = event.clientY - rect.top;
+      const xYards = pointerXToYard(xPx, rect);
+      const yYards = pointerYToYard(yPx, rect);
+      setDotPosition(dot, xYards, yYards);
+      updateDotCoords(dot);
+    }
+
+    function updateDotCoords(dot) {
+      const absoluteX = Number(dot.dataset.x);
+      const relativeX = absoluteX - getCenterLineX();
+      coords.textContent =
+        dot.dataset.id +
+        " " +
+        dot.dataset.color +
+        " " +
+        dot.dataset.position +
+        " — " +
+        dot.dataset.positionFull +
+        ": relative x " +
+        relativeX +
+        " yards, y " +
+        dot.dataset.y +
+        " yards";
+    }
+
+    function getAverageX(color) {
+      const dots = getTeamDots(color);
+      if (!dots.length) {
+        return FIELD_YARDS_X / 2;
+      }
+      const total = dots.reduce((sum, dot) => sum + Number(dot.dataset.x), 0);
+      return total / dots.length;
+    }
+
+    function setInitialCenterLine() {
+      setCenterLinePosition(60);
+    }
+
+    function serializeTeam(color) {
+      const state = teamState[color];
+      const preset = getSelectedPreset(color);
+      const lineX = getCenterLineX();
+
+      return {
+        color,
+        teamType: state.type,
+        preset: preset.label,
+        presetKey: state.preset,
+        side: state.side,
+        description: preset.description,
+        positionsRelativeToYellowLine: getTeamDots(color).map(dot => {
+          const absoluteX = Number(dot.dataset.x);
+          const absoluteY = Number(dot.dataset.y);
+          return {
+            id: dot.dataset.id,
+            position: dot.dataset.position,
+            fullPosition: dot.dataset.positionFull,
+            x: absoluteX - lineX,
+            y: absoluteY,
+            absoluteX,
+            absoluteY
+          };
+        })
+      };
+    }
+
+    function getDotLocations() {
+      const lineX = getCenterLineX();
+      return {
+        field: {
+          units: "yards",
+          width: FIELD_YARDS_X,
+          height: FIELD_YARDS_Y,
+          snap: "1-yard grid",
+          majorLines: "every 10 yards",
+          absoluteOrigin: "top-left",
+          relativeOrigin: "yellow-line"
+        },
+        yellowLine: {
+          color: "yellow",
+          absoluteX: lineX,
+          relativeX: 0,
+          fromY: 0,
+          toY: FIELD_YARDS_Y,
+          draggable: true,
+          movesFormation: true
+        },
+        redTeam: serializeTeam("red"),
+        blueTeam: serializeTeam("blue")
+      };
+    }
+
+    async function exportLocations() {
+      const json = JSON.stringify(getDotLocations(), null, 2);
+      exportBox.value = json;
+
+      try {
+        await navigator.clipboard.writeText(json);
+        coords.textContent = "Red and blue team positions exported separately and copied to clipboard.";
+      } catch (error) {
+        coords.textContent = "Red and blue team positions exported below. Clipboard copy was blocked by the browser.";
+      }
+
+      return json;
+    }
+
+    function downloadExport() {
+      const json = JSON.stringify(getDotLocations(), null, 2);
+      exportBox.value = json;
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = "football-formation-" + timestamp + ".json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      coords.textContent = "Formation exported as a downloadable JSON file.";
+    }
+
+    function normalizeImportedPlayer(player, color, index, lineX) {
+      if (!player || typeof player !== "object") {
+        throw new Error("One imported player is missing or invalid.");
+      }
+
+      const position = String(player.position || "P").trim() || "P";
+      const fullPosition = String(player.fullPosition || positionNames[position] || position).trim();
+      const relativeX = Number(player.x);
+      const absoluteX = Number.isFinite(Number(player.absoluteX)) ? Number(player.absoluteX) : lineX + relativeX;
+      const absoluteY = Number.isFinite(Number(player.absoluteY)) ? Number(player.absoluteY) : Number(player.y);
+
+      if (!Number.isFinite(absoluteX) || !Number.isFinite(absoluteY)) {
+        throw new Error("One imported player has invalid x/y coordinates.");
+      }
+
+      return {
+        id: String(player.id || color.charAt(0).toUpperCase() + String(index + 1)),
+        position,
+        fullPosition,
+        x: clamp(absoluteX, 0, FIELD_YARDS_X),
+        y: clamp(absoluteY, 0, FIELD_SNAP_Y_MAX)
+      };
+    }
+
+    function addImportedDot(player, color) {
+      const dot = document.createElement("div");
+
+      dot.className = "dot " + color;
+      dot.tabIndex = 0;
+      dot.textContent = player.position;
+      dot.dataset.id = player.id;
+      dot.dataset.color = color;
+      dot.dataset.position = player.position;
+      dot.dataset.positionFull = player.fullPosition;
+      dot.dataset.teamType = teamState[color].type;
+      dot.dataset.preset = teamState[color].preset;
+      dot.title = player.position + " — " + player.fullPosition;
+
+      setDotPosition(dot, player.x, player.y);
+      makeDotDraggable(dot);
+      field.appendChild(dot);
+    }
+
+    function applyImportedTeam(color, importedTeam, lineX) {
+      if (!importedTeam || typeof importedTeam !== "object") {
+        throw new Error("Missing " + color + "Team in the imported JSON.");
+      }
+
+      const players = importedTeam.positionsRelativeToYellowLine || importedTeam.players || importedTeam.dots;
+      if (!Array.isArray(players)) {
+        throw new Error("The imported " + color + " team does not include a player list.");
+      }
+
+      if (formationPresets[importedTeam.teamType]) {
+        teamState[color].type = importedTeam.teamType;
+      }
+
+      const presetKey = importedTeam.presetKey;
+      if (presetKey && formationPresets[teamState[color].type].presets[presetKey]) {
+        teamState[color].preset = presetKey;
+      }
+
+      if (importedTeam.side === "left" || importedTeam.side === "right") {
+        teamState[color].side = importedTeam.side;
+      }
+
+      removeTeamDots(color);
+      players
+        .map((player, index) => normalizeImportedPlayer(player, color, index, lineX))
+        .forEach(player => addImportedDot(player, color));
+    }
+
+    function importFormationFromText(jsonText) {
+      let data;
+
+      try {
+        data = JSON.parse(jsonText);
+      } catch (error) {
+        coords.textContent = "Import failed: the JSON could not be parsed.";
+        return;
+      }
+
+      try {
+        const lineX = Number(data.yellowLine && data.yellowLine.absoluteX);
+        setCenterLinePosition(Number.isFinite(lineX) ? lineX : 60);
+
+        applyImportedTeam("red", data.redTeam, getCenterLineX());
+        applyImportedTeam("blue", data.blueTeam, getCenterLineX());
+        buildSettings();
+
+        exportBox.value = JSON.stringify(getDotLocations(), null, 2);
+        coords.textContent = "Imported formation successfully. Red and blue teams were restored separately.";
+      } catch (error) {
+        coords.textContent = "Import failed: " + error.message;
+      }
+    }
+
+    async function importFormationFile(file) {
+      if (!file) {
+        return;
+      }
+
+      try {
+        const text = await file.text();
+        exportBox.value = text;
+        try {
+          const data = JSON.parse(text);
+          if (data.lineups || data.offense || data.defense) {
+            importLineupLibraryFromText(text);
+          } else {
+            importFormationFromText(text);
+          }
+        } catch (error) {
+          importFormationFromText(text);
+        }
+      } catch (error) {
+        coords.textContent = "Import failed: the selected file could not be read.";
+      } finally {
+        importFileInput.value = "";
+      }
+    }
+
+    function makeButton(text, className, onClick) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = text;
+      button.className = className || "";
+      button.addEventListener("click", onClick);
+      return button;
+    }
+
+    function makeLineupPreviewHTML(preset, color, side) {
+      const previewColor = color === "red" ? "#ff6579" : "#76aaff";
+      const players = Array.isArray(preset.players) ? preset.players : [];
+      if (!players.length) {
+        return '<div class="lineup-preview line-left" aria-hidden="true"></div>';
+      }
+
+      const sideMultiplier = side === "left" ? -1 : 1;
+      const previewPoints = players.map(player => ({
+        x: Math.abs(Number(player.x) || 0) * sideMultiplier,
+        y: Number(player.y) || 0
+      }));
+      previewPoints.push({ x: 0, y: previewPoints.reduce((sum, point) => sum + point.y, 0) / previewPoints.length });
+
+      const minX = Math.min(...previewPoints.map(point => point.x));
+      const maxX = Math.max(...previewPoints.map(point => point.x));
+      const minY = Math.min(...previewPoints.map(point => point.y));
+      const maxY = Math.max(...previewPoints.map(point => point.y));
+      const xRange = Math.max(1, maxX - minX);
+      const yRange = Math.max(1, maxY - minY);
+
+      const mapX = value => clamp(12 + ((value - minX) / xRange) * 76, 10, 90);
+      const mapY = value => clamp(10 + ((value - minY) / yRange) * 80, 8, 92);
+      const lineX = mapX(0);
+      const lineClass = lineX < 50 ? "line-left" : "line-right";
+
+      const dots = previewPoints.slice(0, players.length).map(point => {
+        const left = mapX(point.x);
+        const top = mapY(point.y);
+        return '<i class="preview-dot" style="left:' + left + '%;top:' + top + '%;color:' + previewColor + '"></i>';
+      }).join("");
+
+      return '<div class="lineup-preview ' + lineClass + '" aria-hidden="true" style="--line-x:' + lineX + '%">' + dots + '</div>';
+    }
+
+    function getDefaultPresetKey(typeKey) {
+      return Object.keys(formationPresets[typeKey].presets)[0];
+    }
+
+    function ensureTeamPreset(color) {
+      const state = teamState[color];
+      if (!formationPresets[state.type].presets[state.preset]) {
+        state.preset = getDefaultPresetKey(state.type);
+      }
+    }
+
+    function setTeamType(color, typeKey) {
+      const otherColor = color === "red" ? "blue" : "red";
+      const otherType = typeKey === "offense" ? "defense" : "offense";
+
+      teamState[color].type = typeKey;
+      teamState[otherColor].type = otherType;
+      ensureTeamPreset(color);
+      ensureTeamPreset(otherColor);
+      rebuildTeam(color);
+      rebuildTeam(otherColor);
+      buildSettings();
+      buildSelectionControls();
+    }
+
+    function exportLineupLibrary() {
+      const json = JSON.stringify({ lineups: formationPresets }, null, 2);
+      exportBox.value = json;
+      navigator.clipboard?.writeText(json).catch(() => {});
+      coords.textContent = "Lineup options exported. Copy the JSON or download it.";
+      return json;
+    }
+
+    function downloadLineupLibrary() {
+      const json = exportLineupLibrary();
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "football-lineups-" + timestamp + ".json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      coords.textContent = "Lineup options downloaded as JSON.";
+    }
+
+    function makeSafePresetKey(label, typeKey) {
+      const base = String(label || "customLineup")
+        .trim()
+        .replace(/[^a-z0-9]+/gi, " ")
+        .split(" ")
+        .filter(Boolean)
+        .map((part, index) => index === 0 ? part.charAt(0).toLowerCase() + part.slice(1) : part.charAt(0).toUpperCase() + part.slice(1))
+        .join("") || "customLineup";
+      let key = base;
+      let index = 2;
+      while (formationPresets[typeKey].presets[key]) {
+        key = base + index;
+        index += 1;
+      }
+      return key;
+    }
+
+    function normalizePreset(preset, fallbackLabel) {
+      if (!preset || typeof preset !== "object" || !Array.isArray(preset.players)) {
+        throw new Error("One lineup option is missing a players array.");
+      }
+      return {
+        label: String(preset.label || fallbackLabel || "Custom Lineup"),
+        description: String(preset.description || "Imported custom lineup"),
+        players: preset.players.map(player => ({
+          position: String(player.position || "P"),
+          x: Number.isFinite(Number(player.x)) ? Number(player.x) : 0,
+          y: Number.isFinite(Number(player.y)) ? Number(player.y) : FIELD_YARDS_Y / 2
+        }))
+      };
+    }
+
+    function importLineupLibraryFromText(jsonText) {
+      let data;
+      try {
+        data = JSON.parse(jsonText);
+      } catch (error) {
+        coords.textContent = "Lineup import failed: the JSON could not be parsed.";
+        return;
+      }
+
+      const importedLineups = data.lineups || data;
+      try {
+        ["offense", "defense"].forEach(typeKey => {
+          const group = importedLineups[typeKey];
+          const presets = group && group.presets ? group.presets : group;
+          if (!presets || typeof presets !== "object") return;
+          Object.entries(presets).forEach(([presetKey, presetData]) => {
+            const normalized = normalizePreset(presetData, presetKey);
+            const key = formationPresets[typeKey].presets[presetKey]
+              ? makeSafePresetKey(normalized.label, typeKey)
+              : presetKey;
+            formationPresets[typeKey].presets[key] = normalized;
+          });
+        });
+        ensureTeamPreset("red");
+        ensureTeamPreset("blue");
+        buildSettings();
+        buildSelectionControls();
+        rebuildAllTeams();
+        coords.textContent = "Imported lineup options successfully.";
+      } catch (error) {
+        coords.textContent = "Lineup import failed: " + error.message;
+      }
+    }
+
+    function deleteSelectedLineup(color) {
+      const state = teamState[color];
+      const presets = formationPresets[state.type].presets;
+      const keys = Object.keys(presets);
+      if (keys.length <= 1) {
+        coords.textContent = "You need at least one " + formationPresets[state.type].label + " lineup option.";
+        return;
+      }
+      const deletedLabel = presets[state.preset].label;
+      delete presets[state.preset];
+      state.preset = Object.keys(presets)[0];
+      rebuildTeam(color);
+      buildSettings();
+      buildSelectionControls();
+      coords.textContent = "Deleted " + toTitleCase(color) + " lineup option: " + deletedLabel + ".";
+    }
+
+    function buildSettings() {
+      buildTeamSettings("red", redTypeButtons, redPresetButtons);
+      buildTeamSettings("blue", blueTypeButtons, bluePresetButtons);
+    }
+
+    function buildTeamSettings(color, typeContainer, presetContainer) {
+      typeContainer.innerHTML = "";
+      Object.entries(formationPresets).forEach(([typeKey, typeData]) => {
+        const button = makeButton(typeData.label, "preset-button", () => {
+          setTeamType(color, typeKey);
+        });
+        button.dataset.team = color;
+        button.dataset.type = typeKey;
+        typeContainer.appendChild(button);
+      });
+
+      presetContainer.innerHTML = "";
+      Object.entries(formationPresets[teamState[color].type].presets).forEach(([presetKey, presetData]) => {
+        const button = makeButton(presetData.label, "preset-button lineup-option", () => {
+          teamState[color].preset = presetKey;
+          rebuildTeam(color);
+          buildSettings();
+          buildSelectionControls();
+        });
+        button.innerHTML = '<strong>' + presetData.label + '</strong><span>' + presetData.description + '</span>' + makeLineupPreviewHTML(presetData, color, teamState[color].side);
+        button.title = presetData.description;
+        button.dataset.team = color;
+        button.dataset.preset = presetKey;
+        presetContainer.appendChild(button);
+      });
+
+      updateTypeButtons(color);
+      updatePresetButtons(color);
+    }
+
+    function updateTypeButtons(color) {
+      document.querySelectorAll('[data-team="' + color + '"][data-type]').forEach(button => {
+        button.classList.toggle("active", button.dataset.type === teamState[color].type);
+      });
+    }
+
+    function updatePresetButtons(color) {
+      document.querySelectorAll('[data-team="' + color + '"][data-preset]').forEach(button => {
+        button.classList.toggle("active", button.dataset.preset === teamState[color].preset);
+      });
+    }
+
+
+
+    const playBtn = document.getElementById("playBtn");
+    const selectionOverlay = document.getElementById("selectionOverlay");
+    const selectionCard = document.getElementById("selectionCard");
+    const redIntroPanel = document.getElementById("redIntroPanel");
+    const selectionIntroTitle = document.getElementById("selectionIntroTitle");
+    const selectionIntroText = document.getElementById("selectionIntroText");
+    const lineupPanel = document.getElementById("lineupPanel");
+    const lineupPanelTitle = document.getElementById("lineupPanelTitle");
+    const passPanel = document.getElementById("passPanel");
+    const passPanelTitle = document.getElementById("passPanelTitle");
+    const passPanelText = document.getElementById("passPanelText");
+    const readyRollPanel = document.getElementById("readyRollPanel");
+    const readyRollTitle = document.getElementById("readyRollTitle");
+    const readyRollNote = document.getElementById("readyRollNote");
+    const diceFallLayer = document.getElementById("diceFallLayer");
+    const diceTurnBadge = document.getElementById("diceTurnBadge");
+    const gameDiceLayer = document.getElementById("gameDiceLayer");
+    const gameTurnBadge = document.getElementById("gameTurnBadge");
+    const gameDiceButton = document.getElementById("gameDiceButton");
+    const gameDieOne = document.getElementById("gameDieOne");
+    const gameDieTwo = document.getElementById("gameDieTwo");
+    const gameDiceHint = document.getElementById("gameDiceHint");
+    const teamStatusText = document.getElementById("teamStatusText");
+    const redTeamToggle = document.getElementById("redTeamToggle");
+    const redLineupOptions = document.getElementById("redLineupOptions");
+    const verifyLineupBtn = document.getElementById("verifyLineupBtn");
+    const selectionMessage = document.getElementById("selectionMessage");
+    const closeSelectionBtn = document.getElementById("closeSelectionBtn");
+
+    let selectionTimer = null;
+    let activeSelectionTeam = "red";
+    let nextSelectionTeam = null;
+    let currentTurnTeam = "red";
+    let diceAreRolling = false;
+    let gameHasStarted = false;
+
+    function showSelectionPanel(panel) {
+      [redIntroPanel, lineupPanel, passPanel, readyRollPanel].forEach(item => item.classList.remove("active"));
+      panel.classList.add("active");
+    }
+
+    function restartSelectionCardAnimation(className) {
+      selectionCard.classList.remove("swing-in", "swing-out");
+      void selectionCard.offsetWidth;
+      selectionCard.classList.add(className);
+    }
+
+    function openSelectionFlow() {
+      playBtn.classList.add("is-hidden");
+      playBtn.disabled = true;
+      activeSelectionTeam = "red";
+      nextSelectionTeam = null;
+      openTeamSelectionIntro("red");
+    }
+
+    function openTeamSelectionIntro(color) {
+      clearTimeout(selectionTimer);
+      activeSelectionTeam = color;
+      selectionMessage.textContent = "";
+      const otherColor = color === "red" ? "Blue" : "Red";
+      const currentType = formationPresets[teamState[color].type];
+      selectionIntroTitle.innerHTML = '<strong class="' + color + '-text">' + toTitleCase(color) + ' selection</strong>';
+      selectionIntroText.textContent = "Hide the screen from the " + otherColor + " Player's Team while the " + toTitleCase(color) + " Player chooses a " + currentType.label + " lineup.";
+      showSelectionPanel(redIntroPanel);
+      selectionOverlay.classList.add("open");
+      selectionOverlay.setAttribute("aria-hidden", "false");
+      restartSelectionCardAnimation("swing-in");
+
+      selectionTimer = window.setTimeout(() => {
+        restartSelectionCardAnimation("swing-out");
+      }, 1250);
+
+      selectionTimer = window.setTimeout(() => {
+        showSelectionPanel(lineupPanel);
+        buildSelectionControls();
+        restartSelectionCardAnimation("swing-in");
+      }, 2050);
+    }
+
+    function closeSelectionFlow() {
+      clearTimeout(selectionTimer);
+      selectionOverlay.classList.remove("open", "dice-mode");
+      selectionOverlay.setAttribute("aria-hidden", "true");
+      diceFallLayer.classList.remove("show");
+      diceFallLayer.setAttribute("aria-hidden", "true");
+      nextSelectionTeam = null;
+    }
+
+    function buildSelectionControls() {
+      if (!redTeamToggle || !redLineupOptions) return;
+      const color = activeSelectionTeam;
+      const currentType = formationPresets[teamState[color].type];
+      const selectedPreset = getSelectedPreset(color);
+
+      redTeamToggle.innerHTML = "";
+      const lockedType = makeButton(currentType.label + " selected", "preset-button active", () => {});
+      lockedType.disabled = true;
+      redTeamToggle.appendChild(lockedType);
+
+      lineupPanelTitle.textContent = toTitleCase(color) + " Player setup";
+      teamStatusText.innerHTML = toTitleCase(color) + ' is automatically set as <strong>' + currentType.label + '</strong>. Choose a lineup, then verify.';
+
+      redLineupOptions.innerHTML = "";
+      Object.entries(currentType.presets).forEach(([presetKey, presetData]) => {
+        const button = makeButton(presetData.label, "lineup-option", () => {
+          teamState[color].preset = presetKey;
+          rebuildTeam(color);
+          buildSettings();
+          buildSelectionControls();
+          selectionMessage.textContent = "Selected " + currentType.label + " — " + presetData.label + ". Verify when ready.";
+        });
+        button.innerHTML = '<strong>' + presetData.label + '</strong><span>' + presetData.description + '</span>' + makeLineupPreviewHTML(presetData, color, teamState[color].side);
+        button.classList.toggle("active", teamState[color].preset === presetKey);
+        redLineupOptions.appendChild(button);
+      });
+
+      selectionMessage.textContent = selectedPreset ? "Current lineup: " + selectedPreset.label + "." : "";
+    }
+
+    function getFirstTurnColor() {
+      if (teamState.red.type === "offense") return "red";
+      if (teamState.blue.type === "offense") return "blue";
+      return "red";
+    }
+
+    function resetReadyRollAnimation() {
+      readyRollTitle.classList.remove("pop");
+      void readyRollTitle.offsetWidth;
+      readyRollTitle.classList.add("pop");
+    }
+
+    function showDiceFallForTurn(color) {
+      const turnColor = color === "blue" ? "#0066ff" : "#e60023";
+      diceFallLayer.style.setProperty("--dice-color", turnColor);
+      diceTurnBadge.textContent = toTitleCase(color) + " Turn";
+      diceFallLayer.classList.remove("show");
+      void diceFallLayer.offsetWidth;
+      diceFallLayer.classList.add("show");
+      diceFallLayer.setAttribute("aria-hidden", "false");
+    }
+
+
+    function getDiceColor(color) {
+      return color === "blue" ? "#0066ff" : "#e60023";
+    }
+
+    function updateGameTurnUI() {
+      const color = getDiceColor(currentTurnTeam);
+      gameDiceLayer.style.setProperty("--dice-color", color);
+      gameTurnBadge.textContent = toTitleCase(currentTurnTeam) + " Turn";
+      gameDiceHint.textContent = "Click or drag the dice to roll for " + toTitleCase(currentTurnTeam);
+      gameDiceButton.setAttribute("aria-label", "Roll dice for " + toTitleCase(currentTurnTeam));
+    }
+
+    function startDiceGame(firstTurn) {
+      gameHasStarted = true;
+      currentTurnTeam = firstTurn;
+      updateGameTurnUI();
+      gameDiceLayer.classList.add("active");
+      gameDiceLayer.setAttribute("aria-hidden", "false");
+      coords.textContent = toTitleCase(firstTurn) + " offense starts. Click or drag the dice to roll.";
+
+      if (window.startPhysicsDiceGame) {
+        window.startPhysicsDiceGame({
+          firstTurn,
+          getDiceColor,
+          onTurnChange(nextTurn) {
+            currentTurnTeam = nextTurn;
+            updateGameTurnUI();
+            coords.textContent = toTitleCase(nextTurn) + " turn. Click or drag the dice to roll.";
+          },
+          onResult(turn, total, details) {
+            coords.textContent = toTitleCase(turn) + " rolled " + total + " (" + details.join(" + ") + "). Switching turns...";
+          }
+        });
+      } else {
+        coords.textContent = "Dice engine is still loading. Try clicking the dice area again in a moment.";
+      }
+    }
+
+    function switchDiceTurn() {
+      if (window.physicsDiceSwitchTurn) {
+        window.physicsDiceSwitchTurn();
+        return;
+      }
+      currentTurnTeam = currentTurnTeam === "red" ? "blue" : "red";
+      updateGameTurnUI();
+      coords.textContent = toTitleCase(currentTurnTeam) + " turn. Click or drag the dice to roll.";
+    }
+
+    function rollGameDice() {
+      if (window.physicsDiceRoll) {
+        window.physicsDiceRoll();
+      }
+    }
+
+    function showReadyRollSequence() {
+      clearTimeout(selectionTimer);
+      const firstTurn = getFirstTurnColor();
+      selectionOverlay.classList.add("open");
+      selectionOverlay.setAttribute("aria-hidden", "false");
+      selectionOverlay.classList.remove("dice-mode");
+      diceFallLayer.classList.remove("show");
+      diceFallLayer.setAttribute("aria-hidden", "true");
+      readyRollTitle.textContent = "Ready?";
+      readyRollNote.textContent = toTitleCase(firstTurn) + " offense gets the first roll.";
+      showSelectionPanel(readyRollPanel);
+      restartSelectionCardAnimation("swing-in");
+      resetReadyRollAnimation();
+
+      selectionTimer = window.setTimeout(() => {
+        readyRollTitle.textContent = "Roll!";
+        readyRollNote.textContent = "Entering the game. " + toTitleCase(firstTurn) + " rolls first.";
+        resetReadyRollAnimation();
+      }, 850);
+
+      selectionTimer = window.setTimeout(() => {
+        closeSelectionFlow();
+        startDiceGame(firstTurn);
+      }, 1650);
+    }
+
+    function verifyLineupSelection() {
+      const color = activeSelectionTeam;
+      const preset = getSelectedPreset(color);
+      selectionMessage.textContent = "Verified: " + toTitleCase(color) + " is " + formationPresets[teamState[color].type].label + " using " + preset.label + ".";
+      window.setTimeout(() => {
+        restartSelectionCardAnimation("swing-out");
+        window.setTimeout(() => {
+          if (color === "red") {
+            nextSelectionTeam = "blue";
+            passPanelTitle.textContent = "Red selection hidden";
+            passPanelText.textContent = "Pass to the Blue Player's Team. They will get the same protected lineup prompt.";
+            closeSelectionBtn.textContent = "Pass to Blue";
+            showSelectionPanel(passPanel);
+            restartSelectionCardAnimation("swing-in");
+          } else {
+            nextSelectionTeam = null;
+            showReadyRollSequence();
+          }
+        }, 560);
+      }, 650);
+    }
+
+    function continueSelectionFlow() {
+      if (nextSelectionTeam) {
+        const next = nextSelectionTeam;
+        nextSelectionTeam = null;
+        openTeamSelectionIntro(next);
+      } else {
+        closeSelectionFlow();
+      }
+    }
+
+    settingsBtn.addEventListener("click", () => {
+      const isOpen = adminShell.classList.toggle("open");
+      settingsPanel.classList.toggle("open", isOpen);
+      settingsBtn.classList.toggle("active", isOpen);
+      settingsBtn.setAttribute("aria-expanded", String(isOpen));
+    });
+
+    exportBtn.addEventListener("click", exportLocations);
+    downloadBtn.addEventListener("click", downloadExport);
+    importBtn.addEventListener("click", () => importFormationFromText(exportBox.value));
+    exportLineupsBtn.addEventListener("click", exportLineupLibrary);
+    downloadLineupsBtn.addEventListener("click", downloadLineupLibrary);
+    importLineupsBtn.addEventListener("click", () => importLineupLibraryFromText(exportBox.value));
+    deleteRedLineupBtn.addEventListener("click", () => deleteSelectedLineup("red"));
+    deleteBlueLineupBtn.addEventListener("click", () => deleteSelectedLineup("blue"));
+    importFileBtn.addEventListener("click", () => importFileInput.click());
+    importFileInput.addEventListener("change", event => importFormationFile(event.target.files[0]));
+    playBtn.addEventListener("click", openSelectionFlow);
+    gameDiceButton.addEventListener("click", rollGameDice);
+    verifyLineupBtn.addEventListener("click", verifyLineupSelection);
+    closeSelectionBtn.addEventListener("click", continueSelectionFlow);
+
+    addFieldMarkings();
+    setInitialCenterLine();
+    makeCenterLineDraggable();
+    buildSettings();
+    rebuildAllTeams();
+    coords.textContent = "Use the top-left admin button to choose offense/defense, import/export/delete lineup options, or manage field JSON. Red starts as offense and blue starts as defense.";
+  </script>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+    import * as CANNON from "cannon-es";
+
+    let scene, camera, renderer, world, diceMaterial;
+    let diceObjects = [];
+    let isHolding = false;
+    let isTransitioning = false;
+    let needsResultCheck = false;
+    let currentTurn = "red";
+    let diceVisualOpacity = 1;
+    let targetDiceOpacity = 1;
+    let initialized = false;
+    let active = false;
+    let inputLocked = false;
+    let wallBodies = [];
+    let arenaHalfX = 9;
+    let arenaHalfZ = 7;
+    let callbacks = {};
+
+    const mouse = new THREE.Vector2();
+    const raycaster = new THREE.Raycaster();
+    const clock = new THREE.Clock();
+    const FRUSTUM_SIZE = 15;
+    const DICE_COUNT = 2;
+    const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -10);
+
+    const layer = document.getElementById("gameDiceLayer");
+    const mount = document.getElementById("physicsDiceMount");
+    const diceCard = document.getElementById("dicePopupCard");
+    const uiResult = document.getElementById("gameResultBoard");
+    const uiTotal = document.getElementById("gameTotalScore");
+    const uiDetail = document.getElementById("gameDetailScore");
+    const uiTurnLabel = document.getElementById("gameTurnBadge");
+    const uiHint = document.getElementById("gameDiceHint");
+
+    const turnColors = { red: "#E03E3E", blue: "#2F80ED" };
+    const commonColors = { dots: "#FFFFFF", outline: "#725349", shadow: "#F3BD2E" };
+
+    function init() {
+      if (initialized || !layer || !mount) return;
+      initialized = true;
+
+      scene = new THREE.Scene();
+      scene.background = null;
+
+      camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 1, 1000);
+      camera.position.set(50, 50, 50);
+      camera.lookAt(0, 0, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setClearColor(0x000000, 0);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.domElement.className = "physics-dice-canvas";
+      renderer.domElement.style.touchAction = "none";
+      renderer.domElement.style.userSelect = "none";
+      mount.appendChild(renderer.domElement);
+
+      world = new CANNON.World();
+      world.gravity.set(0, -40, 0);
+      world.broadphase = new CANNON.NaiveBroadphase();
+      world.solver.iterations = 20;
+      world.allowSleep = true;
+
+      const wallMaterial = new CANNON.Material("wall");
+      diceMaterial = new CANNON.Material("dice");
+      world.addContactMaterial(new CANNON.ContactMaterial(wallMaterial, diceMaterial, {
+        friction: 0.35,
+        restitution: 0.55
+      }));
+
+      resizeRenderer();
+      createPhysicsWalls(wallMaterial);
+      createDicePair(turnColors.red);
+
+      window.addEventListener("resize", resizeRenderer);
+      renderer.domElement.addEventListener("mousedown", onInputStart);
+      window.addEventListener("mousemove", onInputMove);
+      window.addEventListener("mouseup", onInputEnd);
+      renderer.domElement.addEventListener("touchstart", onInputStart, { passive: false });
+      window.addEventListener("touchmove", onInputMove, { passive: false });
+      window.addEventListener("touchend", onInputEnd);
+      window.addEventListener("touchcancel", onInputEnd);
+
+      animate();
+    }
+
+    window.startPhysicsDiceGame = function startPhysicsDiceGame(options = {}) {
+      callbacks = options;
+      init();
+      active = true;
+      setInputLocked(false);
+      setTurn(options.firstTurn || "red", true);
+      uiResult?.classList.remove("show");
+    };
+
+    window.physicsDiceRoll = function physicsDiceRoll() {
+      if (!active || isTransitioning || isHolding || inputLocked || needsResultCheck) return;
+      beginRollLock();
+      uiResult?.classList.remove("show");
+      diceObjects.forEach((obj) => {
+        resetBodyInsideArena(obj.body);
+        obj.body.wakeUp();
+        obj.isReturning = false;
+        applyThrowForce(obj.body);
+      });
+      window.setTimeout(() => { needsResultCheck = true; }, 700);
+    };
+
+    window.physicsDiceSwitchTurn = switchTurn;
+
+    function setTurn(turn, resetDice = true) {
+      currentTurn = turn;
+      const color = (callbacks.getDiceColor && callbacks.getDiceColor(turn)) || turnColors[turn] || turnColors.red;
+      layer?.style.setProperty("--dice-color", color);
+      if (uiTurnLabel) uiTurnLabel.textContent = `${turn.toUpperCase()} TURN`;
+      if (uiHint) uiHint.textContent = `Click or drag the dice to roll for ${turn}`;
+      if (resetDice) createDicePair(color);
+      callbacks.onTurnChange?.(turn);
+    }
+
+    function setInputLocked(locked) {
+      inputLocked = locked;
+      layer?.classList.toggle("input-locked", locked);
+      if (uiHint) {
+        uiHint.textContent = locked
+          ? "Rolling... wait for the dice to finish"
+          : `Click or drag the dice to roll for ${currentTurn}`;
+      }
+    }
+
+    function beginRollLock() {
+      setInputLocked(true);
+      isTransitioning = false;
+      needsResultCheck = false;
+    }
+
+    function sleep(ms) {
+      return new Promise((resolve) => window.setTimeout(resolve, ms));
+    }
+
+    async function switchTurn() {
+      if (isTransitioning) return;
+      isTransitioning = true;
+      setInputLocked(true);
+      const nextTurn = currentTurn === "red" ? "blue" : "red";
+      layer?.classList.add("switching");
+      targetDiceOpacity = 0;
+      await sleep(520);
+      diceVisualOpacity = 0;
+      setTurn(nextTurn, true);
+      targetDiceOpacity = 1;
+      await sleep(650);
+      layer?.classList.remove("switching");
+      await sleep(180);
+      isTransitioning = false;
+      setInputLocked(false);
+    }
+
+    function updateMousePosition(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      let x, y;
+      if (e.changedTouches && e.changedTouches.length > 0) {
+        x = e.changedTouches[0].clientX;
+        y = e.changedTouches[0].clientY;
+      } else {
+        x = e.clientX;
+        y = e.clientY;
+      }
+      mouse.x = ((x - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((y - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function onInputStart(e) {
+      if (!active || isTransitioning || inputLocked || needsResultCheck) return;
+      e.preventDefault?.();
+      isHolding = true;
+      beginRollLock();
+      uiResult?.classList.remove("show");
+      updateMousePosition(e);
+      diceObjects.forEach((obj) => {
+        obj.body.wakeUp();
+        obj.spinOffset = Math.random() * 100;
+        obj.isReturning = false;
+      });
+    }
+
+    function onInputMove(e) {
+      if (!active || !isHolding) return;
+      e.preventDefault?.();
+      updateMousePosition(e);
+    }
+
+    function onInputEnd() {
+      if (!active || !isHolding) return;
+      isHolding = false;
+      releaseDice();
+    }
+
+    function createPhysicsWalls(material) {
+      wallBodies.forEach((body) => world.removeBody(body));
+      wallBodies = [];
+
+      const floorBody = new CANNON.Body({ mass: 0, material });
+      floorBody.addShape(new CANNON.Plane());
+      floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+      world.addBody(floorBody);
+      wallBodies.push(floorBody);
+
+      const createWall = (x, z, rot) => {
+        const body = new CANNON.Body({ mass: 0, material });
+        body.addShape(new CANNON.Plane());
+        body.position.set(x, 0, z);
+        body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), rot);
+        world.addBody(body);
+        wallBodies.push(body);
+      };
+
+      createWall(arenaHalfX, 0, -Math.PI / 2);
+      createWall(-arenaHalfX, 0, Math.PI / 2);
+      createWall(0, -arenaHalfZ, 0);
+      createWall(0, arenaHalfZ, Math.PI);
+    }
+
+    function createVectorDiceTexture(number, colorHex) {
+      const size = 256;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = colorHex;
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = commonColors.dots;
+
+      const dotSize = size / 5;
+      const center = size / 2;
+      const q1 = size / 4;
+      const q3 = (size * 3) / 4;
+      const drawDot = (x, y) => { ctx.beginPath(); ctx.arc(x, y, dotSize / 2, 0, Math.PI * 2); ctx.fill(); };
+
+      if (number === 1) drawDot(center, center);
+      else if (number === 2) { drawDot(q1, q1); drawDot(q3, q3); }
+      else if (number === 3) { drawDot(q1, q1); drawDot(center, center); drawDot(q3, q3); }
+      else if (number === 4) { drawDot(q1, q1); drawDot(q3, q1); drawDot(q1, q3); drawDot(q3, q3); }
+      else if (number === 5) { drawDot(q1, q1); drawDot(q3, q1); drawDot(center, center); drawDot(q1, q3); drawDot(q3, q3); }
+      else if (number === 6) { drawDot(q1, q1); drawDot(q3, q1); drawDot(q1, center); drawDot(q3, center); drawDot(q1, q3); drawDot(q3, q3); }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.needsUpdate = true;
+      return texture;
+    }
+
+    function createDicePair(colorHex) {
+      diceObjects.forEach((obj) => {
+        scene.remove(obj.mesh);
+        scene.remove(obj.outline);
+        scene.remove(obj.shadow);
+        world.removeBody(obj.body);
+        obj.mesh.geometry.dispose();
+        obj.outline.geometry.dispose();
+        obj.shadow.geometry.dispose();
+        obj.mesh.material.forEach((m) => { m.map?.dispose(); m.dispose(); });
+        obj.outline.material.dispose();
+        obj.shadow.material.dispose();
+      });
+
+      diceObjects = [];
+      uiResult?.classList.remove("show");
+
+      const boxSize = 2.5;
+      const geometry = new RoundedBoxGeometry(boxSize, boxSize, boxSize, 4, 0.4);
+      const outlineGeo = geometry.clone();
+      const shadowGeo = new THREE.CircleGeometry(boxSize * 0.6, 32);
+      const shape = new CANNON.Box(new CANNON.Vec3(boxSize / 2, boxSize / 2, boxSize / 2));
+
+      for (let i = 0; i < DICE_COUNT; i++) {
+        const diceMaterials = [];
+        for (let j = 1; j <= 6; j++) {
+          diceMaterials.push(new THREE.MeshBasicMaterial({
+            map: createVectorDiceTexture(j, colorHex),
+            transparent: true,
+            opacity: diceVisualOpacity
+          }));
+        }
+
+        const matArray = [diceMaterials[0], diceMaterials[5], diceMaterials[1], diceMaterials[4], diceMaterials[2], diceMaterials[3]];
+        const mesh = new THREE.Mesh(geometry.clone(), matArray);
+        scene.add(mesh);
+
+        const outline = new THREE.Mesh(outlineGeo.clone(), new THREE.MeshBasicMaterial({
+          color: commonColors.outline,
+          side: THREE.BackSide,
+          transparent: true,
+          opacity: diceVisualOpacity
+        }));
+        outline.scale.setScalar(1.06);
+        scene.add(outline);
+
+        const shadow = new THREE.Mesh(shadowGeo.clone(), new THREE.MeshBasicMaterial({
+          color: commonColors.shadow,
+          transparent: true,
+          opacity: 0.2,
+          depthWrite: false
+        }));
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.position.y = 0.01;
+        scene.add(shadow);
+
+        const startX = (i - 0.5) * 3;
+        const body = new CANNON.Body({
+          mass: 5,
+          shape,
+          material: diceMaterial,
+          position: new CANNON.Vec3(startX, boxSize + 0.1, 0),
+          sleepSpeedLimit: 0.5,
+          sleepTimeLimit: 0.6
+        });
+
+        body.quaternion.setFromEuler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        world.addBody(body);
+        diceObjects.push({ mesh, outline, shadow, body, spinOffset: 0, isReturning: false });
+      }
+    }
+
+    function releaseDice() {
+      diceObjects.forEach((obj) => {
+        const { body } = obj;
+        const isOutside = Math.abs(body.position.x) > arenaHalfX - 1 || Math.abs(body.position.z) > arenaHalfZ - 1;
+        if (isOutside) obj.isReturning = true;
+        else {
+          obj.isReturning = false;
+          body.wakeUp();
+          applyThrowForce(body);
+        }
+      });
+      window.setTimeout(() => { needsResultCheck = true; }, 700);
+    }
+
+    function resetBodyInsideArena(body) {
+      body.position.x = clampPhysics(body.position.x, -arenaHalfX * 0.42, arenaHalfX * 0.42);
+      body.position.y = Math.max(body.position.y, 4);
+      body.position.z = clampPhysics(body.position.z, -arenaHalfZ * 0.35, arenaHalfZ * 0.35);
+      body.velocity.set(0, 0, 0);
+      body.angularVelocity.set(0, 0, 0);
+    }
+
+    function clampPhysics(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function applyThrowForce(body) {
+      const xDist = -body.position.x;
+      const zDist = -body.position.z;
+      body.velocity.set(
+        xDist * 1.2 + (Math.random() - 0.5) * Math.min(12, arenaHalfX * 1.5),
+        -12 - Math.random() * 9,
+        zDist * 1.2 + (Math.random() - 0.5) * Math.min(10, arenaHalfZ * 1.6)
+      );
+      body.angularVelocity.set((Math.random() - 0.5) * 35, (Math.random() - 0.5) * 35, (Math.random() - 0.5) * 35);
+    }
+
+    function calculateResult() {
+      let total = 0;
+      const details = [];
+      const faceNormals = [
+        new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0),
+        new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0),
+        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)
+      ];
+      const faceValues = [1, 6, 2, 5, 3, 4];
+
+      diceObjects.forEach(({ mesh }) => {
+        let maxDot = -Infinity;
+        let resultValue = 1;
+        faceNormals.forEach((normal, index) => {
+          const worldNormal = normal.clone().applyQuaternion(mesh.quaternion);
+          if (worldNormal.y > maxDot) {
+            maxDot = worldNormal.y;
+            resultValue = faceValues[index];
+          }
+        });
+        total += resultValue;
+        details.push(resultValue);
+      });
+
+      if (uiTotal) uiTotal.textContent = `${currentTurn.toUpperCase()}: ${total}`;
+      if (uiDetail) uiDetail.textContent = `(${details.join(" + ")})`;
+      uiResult?.classList.add("show");
+      needsResultCheck = false;
+      callbacks.onResult?.(currentTurn, total, details);
+      window.setTimeout(switchTurn, 1300);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!initialized) return;
+      const delta = Math.min(clock.getDelta(), 1 / 30);
+      diceVisualOpacity += (targetDiceOpacity - diceVisualOpacity) * 0.12;
+
+      if (active && isHolding) {
+        raycaster.setFromCamera(mouse, camera);
+        const targetPoint = new THREE.Vector3();
+        const intersect = raycaster.ray.intersectPlane(dragPlane, targetPoint);
+        if (intersect) {
+          const time = performance.now() * 0.01;
+          diceObjects.forEach((obj, i) => {
+            const offsetX = Math.sin(time + i) * 1.0;
+            const offsetZ = Math.cos(time + i * 2) * 1.0;
+            obj.body.position.x += (targetPoint.x + offsetX - obj.body.position.x) * 0.25;
+            obj.body.position.x = clampPhysics(obj.body.position.x, -arenaHalfX + 1.5, arenaHalfX - 1.5);
+            obj.body.position.y += (10 - obj.body.position.y) * 0.25;
+            obj.body.position.z = clampPhysics(obj.body.position.z, -arenaHalfZ + 1.5, arenaHalfZ - 1.5);
+            obj.body.position.z += (targetPoint.z + offsetZ - obj.body.position.z) * 0.25;
+            obj.body.quaternion.setFromEuler(time * 2 + obj.spinOffset, time * 3 + obj.spinOffset, time * 1.5);
+            obj.body.velocity.set(0, 0, 0);
+            obj.body.angularVelocity.set(0, 0, 0);
+            obj.isReturning = false;
+          });
+        }
+      } else {
+        const time = performance.now() * 0.01;
+        diceObjects.forEach((obj) => {
+          if (!obj.isReturning) return;
+          obj.body.position.x += (0 - obj.body.position.x) * 0.15;
+          obj.body.position.z += (0 - obj.body.position.z) * 0.15;
+          obj.body.position.y += (12 - obj.body.position.y) * 0.1;
+          obj.body.quaternion.setFromEuler(time * 5, time * 5, 0);
+          obj.body.velocity.set(0, 0, 0);
+          obj.body.angularVelocity.set(0, 0, 0);
+          if (Math.abs(obj.body.position.x) < arenaHalfX - 1 && Math.abs(obj.body.position.z) < arenaHalfZ - 1) {
+            obj.isReturning = false;
+            obj.body.wakeUp();
+            applyThrowForce(obj.body);
+          }
+        });
+        world.step(1 / 60, delta, 3);
+      }
+
+      for (const { mesh, outline, shadow, body } of diceObjects) {
+        mesh.material.forEach((material) => { material.opacity = diceVisualOpacity; });
+        outline.material.opacity = diceVisualOpacity;
+        mesh.position.copy(body.position);
+        mesh.quaternion.copy(body.quaternion);
+        outline.position.copy(mesh.position);
+        outline.quaternion.copy(mesh.quaternion);
+        shadow.position.x = body.position.x;
+        shadow.position.z = body.position.z;
+        const height = Math.max(0, body.position.y - 1);
+        const scale = Math.max(0.5, 1 - height * 0.04);
+        const opacity = Math.max(0, 0.2 - height * 0.01);
+        shadow.scale.setScalar(scale);
+        shadow.material.opacity = opacity * diceVisualOpacity;
+      }
+
+      if (needsResultCheck) {
+        let allStopped = true;
+        for (const obj of diceObjects) {
+          if (obj.isReturning || obj.body.velocity.lengthSquared() > 0.1 || obj.body.angularVelocity.lengthSquared() > 0.1) {
+            allStopped = false;
+            break;
+          }
+        }
+        if (allStopped) calculateResult();
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    function resizeRenderer() {
+      if (!renderer || !layer || !mount) return;
+
+      const layerRect = mount.getBoundingClientRect();
+      const cardRect = diceCard ? diceCard.getBoundingClientRect() : layerRect;
+      const width = Math.max(1, layerRect.width);
+      const height = Math.max(1, layerRect.height);
+      const aspect = width / height;
+      const cameraHalfZ = FRUSTUM_SIZE / 2;
+      const cameraHalfX = (FRUSTUM_SIZE * aspect) / 2;
+
+      camera.left = -cameraHalfX;
+      camera.right = cameraHalfX;
+      camera.top = cameraHalfZ;
+      camera.bottom = -cameraHalfZ;
+      camera.updateProjectionMatrix();
+
+      const cardWorldHalfX = (cardRect.width / width) * cameraHalfX;
+      const cardWorldHalfZ = (cardRect.height / height) * cameraHalfZ;
+      // Use the full popup card as the physics landing area.
+      // The CANNON walls sit at these edges, so the dice body itself naturally
+      // stays inside while still being able to travel across the whole card.
+      arenaHalfX = Math.max(3.8, cardWorldHalfX);
+      arenaHalfZ = Math.max(3.4, cardWorldHalfZ);
+
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(width, height, false);
+
+      if (world && diceMaterial) {
+        const wallMaterial = wallBodies[0]?.material || new CANNON.Material("wall");
+        createPhysicsWalls(wallMaterial);
+      }
+    }
+  </script>
+</body>
+</html>
