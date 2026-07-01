@@ -1,0 +1,1249 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Football Field Grid</title>
+    <style>
+      :root {
+        --page-pad: clamp(6px, 1.6vw, 18px);
+        --viewport-pad: clamp(3px, 0.9vw, 10px);
+        --panel-w: clamp(230px, 24vw, 320px);
+        --field-max-w: 1200px;
+        --field-w: min(
+          var(--field-max-w),
+          calc(
+            100vw - var(--panel-w) - 18px - (2 * var(--page-pad)) -
+              (2 * var(--viewport-pad)) - 2px
+          )
+        );
+        --field-h: calc(var(--field-w) * 53.333 / 120);
+        --line: rgba(255, 255, 255, 0.96);
+        --minor-line: rgba(255, 255, 255, 0.13);
+        --hash: rgba(255, 255, 255, 0.92);
+        --grass-a: #087b16;
+        --grass-b: #0a921b;
+        --grass-c: #066612;
+        --goal: #ff3b1f;
+        --red: #e60023;
+        --blue: #0066ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+
+      body {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(
+            circle at center,
+            rgba(255, 255, 255, 0.08),
+            transparent 34%
+          ),
+          linear-gradient(145deg, #111 0%, #050505 100%);
+        color: white;
+        font-family:
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+        padding: var(--page-pad);
+      }
+
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .app {
+        display: flex;
+        align-items: stretch;
+        gap: clamp(10px, 1.5vw, 18px);
+        width: min(100%, calc(var(--field-w) + var(--panel-w) + 18px));
+      }
+
+      .viewport {
+        width: min(100%, calc(var(--field-w) + (2 * var(--viewport-pad))));
+        max-width: 100%;
+        overflow: hidden;
+        padding: var(--viewport-pad);
+        border-radius: 20px;
+        background:
+          linear-gradient(
+            145deg,
+            rgba(255, 255, 255, 0.08),
+            rgba(255, 255, 255, 0.02)
+          ),
+          rgba(255, 255, 255, 0.04);
+        box-shadow:
+          0 24px 70px rgba(0, 0, 0, 0.55),
+          inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      }
+
+      .field {
+        position: relative;
+        width: 100%;
+        max-width: var(--field-w);
+        height: var(--field-h);
+        overflow: hidden;
+        border-radius: 16px;
+        outline: 3px solid rgba(255, 255, 255, 0.92);
+        outline-offset: -3px;
+        user-select: none;
+        touch-action: none;
+        box-shadow:
+          inset 0 0 0 2px rgba(0, 0, 0, 0.22),
+          inset 0 0 80px rgba(0, 0, 0, 0.28),
+          0 18px 45px rgba(0, 0, 0, 0.45);
+        background:
+          linear-gradient(90deg, var(--minor-line) 1px, transparent 1px),
+          linear-gradient(0deg, var(--minor-line) 1px, transparent 1px),
+          radial-gradient(
+            ellipse at center,
+            rgba(255, 255, 255, 0.13),
+            transparent 60%
+          ),
+          repeating-linear-gradient(
+            105deg,
+            transparent 0 70px,
+            rgba(255, 255, 255, 0.035) 70px 82px,
+            transparent 82px 145px
+          ),
+          repeating-linear-gradient(
+            90deg,
+            var(--grass-c) 0 60px,
+            var(--grass-a) 60px 120px,
+            var(--grass-b) 120px 180px,
+            var(--grass-a) 180px 240px
+          );
+        background-size:
+          calc(var(--field-w) / 120) calc(var(--field-w) / 120),
+          calc(var(--field-w) / 120) calc(var(--field-w) / 120),
+          100% 100%,
+          220px 220px,
+          240px 100%;
+      }
+
+      .field::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(
+            90deg,
+            rgba(0, 0, 0, 0.16),
+            transparent 12%,
+            transparent 88%,
+            rgba(0, 0, 0, 0.16)
+          ),
+          linear-gradient(
+            0deg,
+            rgba(0, 0, 0, 0.2),
+            transparent 20%,
+            transparent 80%,
+            rgba(0, 0, 0, 0.2)
+          );
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      .save-button {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 60;
+        border: 1px solid rgba(255, 255, 255, 0.46);
+        border-radius: 999px;
+        padding: 9px 16px;
+        background: rgba(0, 0, 0, 0.72);
+        color: white;
+        font-weight: 900;
+        letter-spacing: 0.2px;
+        box-shadow: 0 10px 26px rgba(0, 0, 0, 0.32);
+        backdrop-filter: blur(10px);
+      }
+
+      .save-popover {
+        position: absolute;
+        top: 58px;
+        right: 12px;
+        z-index: 65;
+        width: min(250px, calc(100% - 24px));
+        display: none;
+        padding: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 16px;
+        background: rgba(10, 10, 10, 0.9);
+        box-shadow: 0 18px 38px rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(12px);
+      }
+
+      .save-popover.open {
+        display: grid;
+        gap: 9px;
+      }
+
+      .save-popover label,
+      .modal label {
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .save-popover input {
+        width: 100%;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 12px;
+        padding: 10px 11px;
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+        outline: none;
+      }
+
+      .team-choice,
+      .lineup-type-choice {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .team-choice button,
+      .lineup-type-choice button,
+      .popover-save-action,
+      .lineups-tools button,
+      .modal-actions button {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        padding: 9px 12px;
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+        font-weight: 850;
+      }
+
+      .team-choice button.active[data-team="red"] {
+        border-color: var(--red);
+        box-shadow: 0 0 0 2px rgba(230, 0, 35, 0.22);
+      }
+
+      .team-choice button.active[data-team="blue"] {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 2px rgba(0, 102, 255, 0.22);
+      }
+
+      .lineup-type-choice button.active {
+        border-color: rgba(255, 255, 255, 0.74);
+        background: rgba(255, 255, 255, 0.18);
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14);
+      }
+
+      .popover-save-action {
+        background: rgba(255, 255, 255, 0.15);
+      }
+
+      .endzone {
+        position: absolute;
+        top: 0;
+        width: 8.333333%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 2;
+        background:
+          repeating-linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.18) 0px,
+            rgba(255, 255, 255, 0.18) 5px,
+            transparent 5px,
+            transparent 22px
+          ),
+          linear-gradient(90deg, rgba(0, 0, 0, 0.34), rgba(0, 0, 0, 0.12));
+      }
+
+      .endzone.left {
+        left: 0;
+      }
+      .endzone.right {
+        right: 0;
+        background:
+          repeating-linear-gradient(
+            45deg,
+            rgba(255, 255, 255, 0.18) 0px,
+            rgba(255, 255, 255, 0.18) 5px,
+            transparent 5px,
+            transparent 22px
+          ),
+          linear-gradient(270deg, rgba(0, 0, 0, 0.34), rgba(0, 0, 0, 0.12));
+      }
+
+      .yard-line,
+      .goal-line,
+      .line-of-scrimmage,
+      .top-label,
+      .bottom-label,
+      .tick,
+      .hash,
+      .dot {
+        position: absolute;
+      }
+
+      .yard-line {
+        top: 0;
+        width: clamp(2px, 0.42vw, 5px);
+        height: 100%;
+        background: var(--line);
+        transform: translateX(-50%);
+        pointer-events: none;
+        z-index: 4;
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.16);
+      }
+
+      .goal-line {
+        top: 0;
+        width: clamp(3px, 0.5vw, 6px);
+        height: 100%;
+        background: var(--goal);
+        transform: translateX(-50%);
+        pointer-events: none;
+        z-index: 7;
+        box-shadow: 0 0 12px rgba(255, 59, 31, 0.42);
+      }
+
+      .line-of-scrimmage {
+        top: 0;
+        width: clamp(4px, 0.58vw, 7px);
+        height: 100%;
+        background: #ffd400;
+        transform: translateX(-50%);
+        pointer-events: none;
+        z-index: 9;
+        box-shadow:
+          0 0 10px rgba(255, 212, 0, 0.7),
+          0 0 22px rgba(255, 212, 0, 0.32);
+      }
+
+      .top-label,
+      .bottom-label {
+        transform: translateX(-50%);
+        color: white;
+        font-weight: 900;
+        font-size: clamp(11px, 2vw, 24px);
+        line-height: 1;
+        letter-spacing: 0.5px;
+        text-shadow:
+          0 2px 5px rgba(0, 0, 0, 0.65),
+          0 0 14px rgba(0, 0, 0, 0.35);
+        pointer-events: none;
+        z-index: 8;
+      }
+
+      .top-label {
+        top: clamp(4px, 1.3vw, 8px);
+      }
+      .bottom-label {
+        bottom: clamp(4px, 1.3vw, 8px);
+      }
+
+      .tick {
+        width: clamp(2px, 0.38vw, 4px);
+        height: clamp(9px, 2vw, 20px);
+        background: white;
+        transform: translateX(-50%);
+        pointer-events: none;
+        z-index: 8;
+        border-radius: 999px;
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.22);
+      }
+
+      .tick.top {
+        top: clamp(19px, 4vw, 34px);
+      }
+      .tick.bottom {
+        bottom: clamp(19px, 4vw, 34px);
+      }
+
+      .hash {
+        width: clamp(2px, 0.28vw, 3px);
+        height: clamp(7px, 1.3vw, 14px);
+        background: var(--hash);
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        z-index: 4;
+        border-radius: 999px;
+      }
+
+      .hash.long {
+        height: clamp(16px, 3.3vw, 38px);
+        width: clamp(2px, 0.36vw, 4px);
+      }
+
+      .dot {
+        width: clamp(17px, 2.4vw, 26px);
+        height: clamp(17px, 2.4vw, 26px);
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 20;
+        cursor: grab;
+        touch-action: none;
+        border: 2px solid rgba(255, 255, 255, 0.92);
+        box-shadow:
+          0 3px 8px rgba(0, 0, 0, 0.45),
+          inset 0 1px 3px rgba(255, 255, 255, 0.45);
+        display: grid;
+        place-items: center;
+        color: white;
+        font-size: clamp(7px, 1.15vw, 11px);
+        font-weight: 950;
+        letter-spacing: -0.25px;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+      }
+
+      .dot::after {
+        content: attr(data-position-full);
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 7px);
+        transform: translateX(-50%) scale(0.96);
+        opacity: 0;
+        pointer-events: none;
+        white-space: nowrap;
+        border: 1px solid rgba(255, 255, 255, 0.34);
+        border-radius: 999px;
+        padding: 5px 9px;
+        background: rgba(0, 0, 0, 0.82);
+        color: white;
+        font-size: 11px;
+        font-weight: 850;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.38);
+        transition:
+          opacity 0.12s ease,
+          transform 0.12s ease;
+        z-index: 45;
+      }
+
+      .dot:hover::after,
+      .dot:focus-visible::after {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+      }
+
+      .dot:active {
+        cursor: grabbing;
+      }
+
+      .dot.dragging {
+        z-index: 30;
+        box-shadow:
+          0 8px 18px rgba(0, 0, 0, 0.55),
+          0 0 0 5px rgba(255, 255, 255, 0.16),
+          inset 0 1px 3px rgba(255, 255, 255, 0.45);
+      }
+
+      .dot.red {
+        background: var(--red);
+      }
+      .dot.blue {
+        background: var(--blue);
+      }
+
+      .lineups-panel {
+        width: var(--panel-w);
+        min-height: calc(var(--field-h) + (2 * var(--viewport-pad)));
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 20px;
+        padding: 16px;
+        background:
+          linear-gradient(
+            145deg,
+            rgba(255, 255, 255, 0.1),
+            rgba(255, 255, 255, 0.035)
+          ),
+          rgba(255, 255, 255, 0.045);
+        box-shadow:
+          0 24px 70px rgba(0, 0, 0, 0.36),
+          inset 0 1px 0 rgba(255, 255, 255, 0.11);
+      }
+
+      .lineups-panel h2 {
+        margin: 0;
+        font-size: clamp(22px, 2.4vw, 34px);
+        line-height: 1;
+        letter-spacing: -0.04em;
+      }
+
+      .lineups-tools {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin: 12px 0 14px;
+      }
+
+      .lineups-tools button {
+        padding: 9px 8px;
+        font-size: 13px;
+      }
+
+      .lineup-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding-left: 28px;
+      }
+
+      .lineup-list li::marker {
+        color: rgba(255, 255, 255, 0.75);
+        font-weight: 900;
+      }
+
+      .lineup-pill {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border: 2px solid rgba(255, 255, 255, 0.28);
+        border-radius: 999px;
+        padding: 7px 8px 7px 9px;
+        background: rgba(0, 0, 0, 0.28);
+        color: white;
+        text-align: left;
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+      }
+
+      .lineup-pill.red {
+        border-color: var(--red);
+      }
+
+      .lineup-pill.blue {
+        border-color: var(--blue);
+      }
+
+      .lineup-pill-main {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .lineup-type-badge {
+        flex: 0 0 auto;
+        width: 26px;
+        height: 26px;
+        display: grid;
+        place-items: center;
+        border: 2px solid rgba(255, 255, 255, 0.72);
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 12px;
+        font-weight: 950;
+        line-height: 1;
+      }
+
+      .lineup-pill-title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 900;
+      }
+
+      .lineup-pill-team {
+        flex: 0 0 auto;
+        border-radius: 999px;
+        padding: 4px 8px;
+        background: rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 11px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .empty-lineups {
+        margin: 14px 0 0;
+        color: rgba(255, 255, 255, 0.62);
+        font-size: 14px;
+        line-height: 1.35;
+      }
+
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: none;
+        place-items: center;
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.62);
+      }
+
+      .modal-backdrop.open {
+        display: grid;
+      }
+
+      .modal {
+        width: min(680px, 100%);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 22px;
+        padding: 18px;
+        background: rgba(18, 18, 18, 0.96);
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.6);
+      }
+
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .modal-header h3 {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      .modal-close {
+        width: 38px;
+        height: 38px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+        font-size: 20px;
+        line-height: 1;
+      }
+
+      .modal textarea {
+        width: 100%;
+        min-height: 260px;
+        resize: vertical;
+        margin-top: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 16px;
+        padding: 13px;
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+        outline: none;
+        line-height: 1.45;
+      }
+
+      .modal-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .modal-status {
+        min-height: 20px;
+        margin: 10px 0 0;
+        color: rgba(255, 255, 255, 0.68);
+        font-size: 13px;
+      }
+
+      @media (max-width: 860px) {
+        :root {
+          --field-w: calc(100vw - (2 * var(--page-pad)) - (2 * var(--viewport-pad)) - 2px);
+          --panel-w: 100%;
+        }
+
+        body {
+          place-items: start center;
+        }
+
+        .app {
+          flex-direction: column;
+          width: 100%;
+        }
+
+        .lineups-panel {
+          min-height: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <div class="viewport">
+        <div class="field" id="field" aria-label="Football field grid">
+          <button class="save-button" id="saveButton" type="button">Save</button>
+          <div class="save-popover" id="savePopover" aria-label="Save lineup panel">
+            <label for="lineupTitleInput">Lineup title</label>
+            <input id="lineupTitleInput" type="text" placeholder="Lineup 1" />
+            <label>Lineup type</label>
+            <div class="lineup-type-choice">
+              <button class="active" data-type="offense" type="button">Offense</button>
+              <button data-type="defense" type="button">Defense</button>
+            </div>
+            <label>Team</label>
+            <div class="team-choice">
+              <button class="active" data-team="red" type="button">Red</button>
+              <button data-team="blue" type="button">Blue</button>
+            </div>
+            <button class="popover-save-action" id="confirmSaveButton" type="button">
+              Save Lineup
+            </button>
+          </div>
+          <div class="endzone left"></div>
+          <div class="endzone right"></div>
+        </div>
+      </div>
+
+      <aside class="lineups-panel" aria-label="Saved lineups">
+        <h2>Lineups</h2>
+        <div class="lineups-tools">
+          <button id="textImportExportButton" type="button">Import/Export</button>
+          <button id="jsonImportExportButton" type="button">JSON</button>
+        </div>
+        <ol class="lineup-list" id="lineupList"></ol>
+        <p class="empty-lineups" id="emptyLineups">
+          No saved lineups yet. Move players around, hit Save, enter a title, choose offense or defense, then pick red or blue.
+        </p>
+      </aside>
+    </main>
+
+    <div class="modal-backdrop" id="importExportModal" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-header">
+          <h3 id="modalTitle">Import / Export</h3>
+          <button class="modal-close" id="modalCloseButton" type="button" aria-label="Close">
+            ×
+          </button>
+        </div>
+        <label for="importExportText" id="modalLabel">Lineup text</label>
+        <textarea id="importExportText" spellcheck="false"></textarea>
+        <div class="modal-actions">
+          <button id="copyButton" type="button">Copy</button>
+          <button id="pasteButton" type="button">Paste</button>
+          <button id="importButton" type="button">Import</button>
+          <button id="refreshExportButton" type="button">Refresh Export</button>
+        </div>
+        <p class="modal-status" id="modalStatus" aria-live="polite"></p>
+      </div>
+    </div>
+
+    <script>
+      const FIELD_YARDS_X = 120;
+      const FIELD_YARDS_Y = 53.333;
+      const FIELD_SNAP_Y_MAX = 53;
+      const LINE_X = 60;
+      const STORAGE_KEY = "football-field-saved-lineups-v1";
+
+      const field = document.getElementById("field");
+      const saveButton = document.getElementById("saveButton");
+      const savePopover = document.getElementById("savePopover");
+      const lineupTitleInput = document.getElementById("lineupTitleInput");
+      const confirmSaveButton = document.getElementById("confirmSaveButton");
+      const lineupList = document.getElementById("lineupList");
+      const emptyLineups = document.getElementById("emptyLineups");
+      const textImportExportButton = document.getElementById("textImportExportButton");
+      const jsonImportExportButton = document.getElementById("jsonImportExportButton");
+      const importExportModal = document.getElementById("importExportModal");
+      const modalTitle = document.getElementById("modalTitle");
+      const modalLabel = document.getElementById("modalLabel");
+      const importExportText = document.getElementById("importExportText");
+      const modalCloseButton = document.getElementById("modalCloseButton");
+      const copyButton = document.getElementById("copyButton");
+      const pasteButton = document.getElementById("pasteButton");
+      const importButton = document.getElementById("importButton");
+      const refreshExportButton = document.getElementById("refreshExportButton");
+      const modalStatus = document.getElementById("modalStatus");
+
+      let selectedSaveTeam = "red";
+      let selectedLineupType = "offense";
+      let savedLineups = loadSavedLineups();
+      let modalMode = "text";
+
+      const positionNames = {
+        QB: "Quarterback",
+        C: "Center",
+        G: "Guard",
+        T: "Tackle",
+        RB: "Running Back",
+        FB: "Fullback",
+        WR: "Wide Receiver",
+        TE: "Tight End",
+        DE: "Defensive End",
+        DT: "Defensive Tackle",
+        NT: "Nose Tackle",
+        LB: "Linebacker",
+        MLB: "Middle Linebacker",
+        ILB: "Inside Linebacker",
+        OLB: "Outside Linebacker",
+        CB: "Cornerback",
+        FS: "Free Safety",
+        SS: "Strong Safety",
+        DB: "Defensive Back",
+      };
+
+      const defaultTeams = {
+        red: {
+          side: "left",
+          players: [
+            { position: "T", x: -5, y: 16 },
+            { position: "G", x: -5, y: 20 },
+            { position: "C", x: -5, y: 24 },
+            { position: "G", x: -5, y: 28 },
+            { position: "T", x: -5, y: 32 },
+            { position: "QB", x: -9, y: 24 },
+            { position: "FB", x: -13, y: 24 },
+            { position: "RB", x: -17, y: 24 },
+            { position: "WR", x: -15, y: 8 },
+            { position: "WR", x: -15, y: 42 },
+            { position: "TE", x: -6, y: 36 },
+          ],
+        },
+        blue: {
+          side: "right",
+          players: [
+            { position: "DE", x: 5, y: 15 },
+            { position: "DT", x: 5, y: 21 },
+            { position: "DT", x: 5, y: 27 },
+            { position: "DE", x: 5, y: 33 },
+            { position: "OLB", x: 10, y: 17 },
+            { position: "MLB", x: 10, y: 24 },
+            { position: "OLB", x: 10, y: 31 },
+            { position: "CB", x: 15, y: 8 },
+            { position: "CB", x: 15, y: 42 },
+            { position: "FS", x: 21, y: 20 },
+            { position: "SS", x: 18, y: 32 },
+          ],
+        },
+      };
+
+      const majorLines = [
+        { x: 0, text: "" },
+        { x: 10, text: "G" },
+        { x: 20, text: "10" },
+        { x: 30, text: "20" },
+        { x: 40, text: "30" },
+        { x: 50, text: "40" },
+        { x: 60, text: "50" },
+        { x: 70, text: "40" },
+        { x: 80, text: "30" },
+        { x: 90, text: "20" },
+        { x: 100, text: "10" },
+        { x: 110, text: "G" },
+        { x: 120, text: "" },
+      ];
+
+      function yardToXPct(yards) {
+        return (yards / FIELD_YARDS_X) * 100 + "%";
+      }
+
+      function yardToYPct(yards) {
+        return (yards / FIELD_YARDS_Y) * 100 + "%";
+      }
+
+      function pointerXToYard(px, rect) {
+        return (px / rect.width) * FIELD_YARDS_X;
+      }
+
+      function pointerYToYard(px, rect) {
+        return (px / rect.height) * FIELD_YARDS_Y;
+      }
+
+      function snapToGrid(value) {
+        return Math.round(value);
+      }
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function addFieldMarkings() {
+        majorLines.forEach(({ x, text }) => {
+          const line = document.createElement("div");
+          line.className = "yard-line";
+          line.style.left = yardToXPct(x);
+          field.appendChild(line);
+
+          if (text) {
+            ["top", "bottom"].forEach((pos) => {
+              const label = document.createElement("div");
+              label.className = pos + "-label";
+              label.textContent = text;
+              label.style.left = yardToXPct(x);
+              field.appendChild(label);
+
+              const tick = document.createElement("div");
+              tick.className = "tick " + pos;
+              tick.style.left = yardToXPct(x);
+              field.appendChild(tick);
+            });
+          }
+        });
+
+        [10, 110].forEach((x) => {
+          const goal = document.createElement("div");
+          goal.className = "goal-line";
+          goal.style.left = yardToXPct(x);
+          field.appendChild(goal);
+        });
+
+        const lineOfScrimmage = document.createElement("div");
+        lineOfScrimmage.className = "line-of-scrimmage";
+        lineOfScrimmage.style.left = yardToXPct(LINE_X);
+        field.appendChild(lineOfScrimmage);
+
+        for (let x = 11; x <= 109; x++) {
+          const yMid = FIELD_YARDS_Y / 2;
+          const hash = document.createElement("div");
+          hash.className = x % 5 === 0 ? "hash long" : "hash";
+          hash.style.left = yardToXPct(x);
+          hash.style.top = yardToYPct(yMid);
+          field.appendChild(hash);
+        }
+      }
+
+      function getTeamXBounds(color) {
+        const lineBuffer = 1;
+        if (color === "red") return { min: 0, max: LINE_X - lineBuffer };
+        if (color === "blue") return { min: LINE_X + lineBuffer, max: FIELD_YARDS_X };
+        return { min: 0, max: FIELD_YARDS_X };
+      }
+
+      function setDotPosition(dot, x, y) {
+        const snappedX = snapToGrid(x);
+        const snappedY = snapToGrid(y);
+        const bounds = getTeamXBounds(dot.dataset.color);
+        const clampedX = clamp(snappedX, bounds.min, bounds.max);
+        const clampedY = clamp(snappedY, 0, FIELD_SNAP_Y_MAX);
+
+        dot.dataset.x = String(clampedX);
+        dot.dataset.y = String(clampedY);
+        dot.style.left = yardToXPct(clampedX);
+        dot.style.top = yardToYPct(clampedY);
+      }
+
+      function applySideOffset(color, relativeX) {
+        const sideMultiplier = defaultTeams[color].side === "left" ? -1 : 1;
+        return LINE_X + sideMultiplier * Math.abs(relativeX);
+      }
+
+      function addDot(player, color, index) {
+        const dot = document.createElement("div");
+        const fullName = positionNames[player.position] || player.position;
+        const playerId = color.charAt(0).toUpperCase() + String(index + 1);
+
+        dot.className = "dot " + color;
+        dot.tabIndex = 0;
+        dot.textContent = player.position;
+        dot.dataset.id = playerId;
+        dot.dataset.color = color;
+        dot.dataset.position = player.position;
+        dot.dataset.positionFull = player.position + " — " + fullName;
+        dot.title = player.position + " — " + fullName;
+
+        setDotPosition(dot, applySideOffset(color, player.x), player.y);
+        makeDotDraggable(dot);
+        field.appendChild(dot);
+      }
+
+      function makeDotDraggable(dot) {
+        dot.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          dot.setPointerCapture(event.pointerId);
+          dot.classList.add("dragging");
+          moveDotToPointer(dot, event);
+
+          dot.addEventListener("pointermove", onPointerMove);
+          dot.addEventListener("pointerup", onPointerUp);
+          dot.addEventListener("pointercancel", onPointerUp);
+
+          function onPointerMove(moveEvent) {
+            moveDotToPointer(dot, moveEvent);
+          }
+
+          function onPointerUp(upEvent) {
+            dot.releasePointerCapture(upEvent.pointerId);
+            dot.classList.remove("dragging");
+            dot.removeEventListener("pointermove", onPointerMove);
+            dot.removeEventListener("pointerup", onPointerUp);
+            dot.removeEventListener("pointercancel", onPointerUp);
+          }
+        });
+      }
+
+      function moveDotToPointer(dot, event) {
+        const rect = field.getBoundingClientRect();
+        const xPx = event.clientX - rect.left;
+        const yPx = event.clientY - rect.top;
+        const xYards = pointerXToYard(xPx, rect);
+        const yYards = pointerYToYard(yPx, rect);
+        setDotPosition(dot, xYards, yYards);
+      }
+
+      function buildDefaultTeams() {
+        Object.entries(defaultTeams).forEach(([color, team]) => {
+          team.players.forEach((player, index) => addDot(player, color, index));
+        });
+      }
+
+      function getTeamDots(team) {
+        return [...field.querySelectorAll(`.dot.${team}`)];
+      }
+
+      function captureTeamLineup(team) {
+        return getTeamDots(team).map((dot) => ({
+          id: dot.dataset.id,
+          position: dot.dataset.position,
+          x: Number(dot.dataset.x),
+          y: Number(dot.dataset.y),
+        }));
+      }
+
+      function applyLineup(lineup) {
+        lineup.players.forEach((player) => {
+          const dot = field.querySelector(`.dot[data-id="${player.id}"]`);
+          if (dot && dot.dataset.color === lineup.team) {
+            setDotPosition(dot, player.x, player.y);
+          }
+        });
+      }
+
+      function loadSavedLineups() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function storeSavedLineups() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedLineups));
+      }
+
+      function normalizeLineup(lineup, index) {
+        const team = lineup.team === "blue" ? "blue" : "red";
+        const lineupType = lineup.type === "defense" ? "defense" : "offense";
+        const players = Array.isArray(lineup.players) ? lineup.players : [];
+        return {
+          id: lineup.id || crypto.randomUUID?.() || String(Date.now() + index),
+          title: String(lineup.title || `${team[0].toUpperCase() + team.slice(1)} Lineup ${index + 1}`),
+          team,
+          type: lineupType,
+          players: players
+            .filter((player) => player && player.id)
+            .map((player) => ({
+              id: String(player.id),
+              position: String(player.position || ""),
+              x: clamp(Number(player.x) || 0, 0, FIELD_YARDS_X),
+              y: clamp(Number(player.y) || 0, 0, FIELD_SNAP_Y_MAX),
+            })),
+        };
+      }
+
+      function renderLineups() {
+        lineupList.innerHTML = "";
+        emptyLineups.hidden = savedLineups.length > 0;
+
+        savedLineups.forEach((lineup, index) => {
+          const item = document.createElement("li");
+          const pill = document.createElement("button");
+          pill.className = `lineup-pill ${lineup.team}`;
+          pill.type = "button";
+          pill.title = `Load ${lineup.title}`;
+
+          const main = document.createElement("span");
+          main.className = "lineup-pill-main";
+
+          const typeBadge = document.createElement("span");
+          typeBadge.className = "lineup-type-badge";
+          typeBadge.textContent = lineup.type === "defense" ? "D" : "O";
+          typeBadge.title = lineup.type === "defense" ? "Defense" : "Offense";
+
+          const title = document.createElement("span");
+          title.className = "lineup-pill-title";
+          title.textContent = lineup.title;
+
+          const team = document.createElement("span");
+          team.className = "lineup-pill-team";
+          team.textContent = lineup.team;
+
+          main.append(typeBadge, title);
+          pill.append(main, team);
+          pill.addEventListener("click", () => applyLineup(lineup));
+          item.appendChild(pill);
+          lineupList.appendChild(item);
+        });
+      }
+
+      function saveCurrentLineup() {
+        const title = lineupTitleInput.value.trim() || `Lineup ${savedLineups.length + 1}`;
+        const lineup = normalizeLineup(
+          {
+            title,
+            team: selectedSaveTeam,
+            type: selectedLineupType,
+            players: captureTeamLineup(selectedSaveTeam),
+          },
+          savedLineups.length,
+        );
+        savedLineups.push(lineup);
+        storeSavedLineups();
+        renderLineups();
+        lineupTitleInput.value = "";
+        lineupTitleInput.placeholder = `Lineup ${savedLineups.length + 1}`;
+        savePopover.classList.remove("open");
+      }
+
+      function lineupsToText() {
+        if (!savedLineups.length) return "No saved lineups.";
+        return savedLineups
+          .map((lineup, index) => {
+            const players = lineup.players
+              .map((player) => `${player.id} ${player.position}: x=${player.x}, y=${player.y}`)
+              .join("; ");
+            return `${index + 1}. [${lineup.team.toUpperCase()}] ${lineup.title}\n${players}`;
+          })
+          .join("\n\n");
+      }
+
+      function lineupsToJson() {
+        return JSON.stringify(savedLineups, null, 2);
+      }
+
+      function parseTextLineups(text) {
+        const blocks = text.split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean);
+        return blocks.map((block, index) => {
+          const lines = block.split("\n");
+          const header = lines[0] || "";
+          const teamMatch = header.match(/\[(RED|BLUE)\]/i);
+          const typeMatch = header.match(/\[(OFFENSE|DEFENSE|O|D)\]/i);
+          const team = teamMatch ? teamMatch[1].toLowerCase() : "red";
+          const type = typeMatch
+            ? (typeMatch[1].toLowerCase().startsWith("d") ? "defense" : "offense")
+            : "offense";
+          const title = header
+            .replace(/^\d+\.\s*/, "")
+            .replace(/\[(RED|BLUE)\]\s*/i, "")
+            .replace(/\[(OFFENSE|DEFENSE|O|D)\]\s*/i, "")
+            .trim() || `Imported Lineup ${index + 1}`;
+          const playersText = lines.slice(1).join(" ");
+          const players = [];
+          playersText.split(";").forEach((chunk) => {
+            const match = chunk.trim().match(/^(\S+)\s+(\S+):\s*x=(-?\d+(?:\.\d+)?),\s*y=(-?\d+(?:\.\d+)?)/i);
+            if (match) {
+              players.push({
+                id: match[1],
+                position: match[2],
+                x: Number(match[3]),
+                y: Number(match[4]),
+              });
+            }
+          });
+          return normalizeLineup({ title, team, type, players }, savedLineups.length + index);
+        });
+      }
+
+      function openModal(mode) {
+        modalMode = mode;
+        modalTitle.textContent = mode === "json" ? "JSON Import / Export" : "Import / Export";
+        modalLabel.textContent = mode === "json" ? "Lineup JSON" : "Lineup text";
+        importExportText.value = mode === "json" ? lineupsToJson() : lineupsToText();
+        modalStatus.textContent = "";
+        importExportModal.classList.add("open");
+        importExportModal.setAttribute("aria-hidden", "false");
+        importExportText.focus();
+      }
+
+      function closeModal() {
+        importExportModal.classList.remove("open");
+        importExportModal.setAttribute("aria-hidden", "true");
+      }
+
+      async function copyModalText() {
+        await navigator.clipboard.writeText(importExportText.value);
+        modalStatus.textContent = "Copied.";
+      }
+
+      async function pasteModalText() {
+        importExportText.value = await navigator.clipboard.readText();
+        modalStatus.textContent = "Pasted from clipboard.";
+      }
+
+      function importFromModal() {
+        try {
+          const imported =
+            modalMode === "json"
+              ? JSON.parse(importExportText.value)
+              : parseTextLineups(importExportText.value);
+          if (!Array.isArray(imported)) throw new Error("Import must be a list of lineups.");
+          savedLineups = imported.map((lineup, index) => normalizeLineup(lineup, index));
+          storeSavedLineups();
+          renderLineups();
+          modalStatus.textContent = `Imported ${savedLineups.length} lineup${savedLineups.length === 1 ? "" : "s"}.`;
+        } catch (error) {
+          modalStatus.textContent = `Import failed: ${error.message}`;
+        }
+      }
+
+      saveButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        savePopover.classList.toggle("open");
+        lineupTitleInput.placeholder = `Lineup ${savedLineups.length + 1}`;
+      });
+
+      savePopover.addEventListener("click", (event) => event.stopPropagation());
+      document.addEventListener("click", () => savePopover.classList.remove("open"));
+
+      savePopover.querySelectorAll(".team-choice button").forEach((button) => {
+        button.addEventListener("click", () => {
+          selectedSaveTeam = button.dataset.team;
+          savePopover.querySelectorAll(".team-choice button").forEach((choice) => {
+            choice.classList.toggle("active", choice === button);
+          });
+        });
+      });
+
+      savePopover.querySelectorAll(".lineup-type-choice button").forEach((button) => {
+        button.addEventListener("click", () => {
+          selectedLineupType = button.dataset.type;
+          savePopover.querySelectorAll(".lineup-type-choice button").forEach((choice) => {
+            choice.classList.toggle("active", choice === button);
+          });
+        });
+      });
+
+      confirmSaveButton.addEventListener("click", saveCurrentLineup);
+      textImportExportButton.addEventListener("click", () => openModal("text"));
+      jsonImportExportButton.addEventListener("click", () => openModal("json"));
+      modalCloseButton.addEventListener("click", closeModal);
+      importExportModal.addEventListener("click", (event) => {
+        if (event.target === importExportModal) closeModal();
+      });
+      copyButton.addEventListener("click", copyModalText);
+      pasteButton.addEventListener("click", pasteModalText);
+      importButton.addEventListener("click", importFromModal);
+      refreshExportButton.addEventListener("click", () => {
+        importExportText.value = modalMode === "json" ? lineupsToJson() : lineupsToText();
+        modalStatus.textContent = "Export refreshed.";
+      });
+
+      addFieldMarkings();
+      buildDefaultTeams();
+      renderLineups();
+    </script>
+  </body>
+</html>
